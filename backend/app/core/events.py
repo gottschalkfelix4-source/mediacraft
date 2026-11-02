@@ -15,6 +15,10 @@ _subscribers: list[queue.Queue] = []
 _sub_lock = threading.Lock()
 
 
+# set while downloads are running so the scheduler polls the download clients more often (live progress)
+live_state = {"active_downloads": False}
+
+
 def publish(kind: str, data: dict | None = None) -> None:
     msg = json.dumps({"type": kind, "data": data or {}, "ts": datetime.now(timezone.utc).isoformat()}, default=str)
     with _sub_lock:

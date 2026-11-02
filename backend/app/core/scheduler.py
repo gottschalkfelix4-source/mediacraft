@@ -14,7 +14,7 @@ from typing import Callable, Optional
 from ..db import session_scope
 from ..models import TaskState, utcnow
 from . import settings as settings_mod
-from .events import publish
+from .events import publish, live_state
 
 log = logging.getLogger("scheduler")
 
@@ -95,8 +95,18 @@ def _cfg(section: str, key: str, factor: float = 1.0, default: float = 0.0) -> C
     return lambda all_cfg: float(all_cfg.get(section, {}).get(key, default) or 0) * factor
 
 
+LIVE_DOWNLOAD_INTERVAL = 4  # seconds while something downloads (the loop ticks every 5 s, so this gives ~5 s updates)
+
+
+def _download_interval(all_cfg: dict) -> float:
+    base = _cfg("downloads", "check_interval_seconds", 1)(all_cfg)
+    if base > 0 and live_state["active_downloads"]:
+        return min(base, LIVE_DOWNLOAD_INTERVAL)
+    return base
+
+
 TASKS = [
-    Task("check_downloads", "Downloads prüfen", _cfg("downloads", "check_interval_seconds", 1), "check_downloads"),
+    Task("check_downloads", "Downloads prüfen", _download_interval, "check_downloads"),
     Task("rss_sync", "RSS-Sync", _cfg("indexers", "rss_interval_minutes", 60), "rss_sync"),
     Task("poll_limits", "Indexer-Limits abfragen", _cfg("indexers", "limits_poll_minutes", 60, 15), "poll_limits"),
     Task("refresh_metadata", "Metadaten aktualisieren", _cfg("metadata", "refresh_interval_hours", 3600), "refresh_all"),

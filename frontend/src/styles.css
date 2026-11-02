@@ -1453,3 +1453,20 @@ tr.rel-details td { background: var(--bg-elev-2); font-size: 12.5px; }
 .rematch-results { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
 .rematch-results .lookup-card .poster-md { width: 80px; }
 .rematch-results .lookup-overview { -webkit-line-clamp: 2; }
+
+/* live download state in file columns */
+.dl-status { display: inline-flex; align-items: center; gap: 8px; vertical-align: middle; }
+.dl-progress { min-width: 150px; }
+.dl-progress.wide { min-width: 240px; }
+.dl-progress .progress { flex: 1; min-width: 70px; }
+.dl-progress .progress-bar { transition: width 1s linear; }
+.dl-importing { color: var(--info); font-size: 12.5px; font-weight: 500; }
+.copy-anim .copy-doc { fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linejoin: round; opacity: 0.8; }
+.copy-anim .copy-sheet { fill: currentColor; animation: copy-sheet 1.2s ease-in-out infinite; }
+@keyframes copy-sheet {
+  0% { transform: translateX(0); opacity: 0; }
+  15% { opacity: 1; }
+  80% { transform: translateX(14px); opacity: 1; }
+  100% { transform: translateX(14px); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .copy-anim .copy-sheet { animation-duration: 3s; } }

@@ -7,7 +7,7 @@ from datetime import timedelta
 from sqlalchemy.orm import Session
 
 from ..core import settings as settings_mod
-from ..core.events import publish
+from ..core.events import live_state, publish
 from ..downloadclients.base import ClientError
 from ..downloadclients.manager import get_client, map_path
 from ..models import Blocklist, DownloadClient, History, Movie, QueueItem, Series, iso, utcnow
@@ -16,6 +16,7 @@ from .notifications import notify
 
 log = logging.getLogger("queue")
 
+ACTIVE = ("grabbed", "queued", "downloading", "completed", "importing")  # worth live progress polling
 TRACKED = ("grabbed", "queued", "downloading", "paused", "warning", "completed", "importing", "import_blocked", "seeding")
 
 
@@ -74,6 +75,7 @@ def check_downloads(db: Session) -> dict:
                 continue
             q.status = {"downloading": "downloading", "queued": "queued", "paused": "paused",
                         "warning": "warning"}.get(ci.status, "downloading")
+    live_state["active_downloads"] = db.query(QueueItem.id).filter(QueueItem.status.in_(ACTIVE)).first() is not None
     if stats["checked"]:
         publish("queue.updated", {})
     return stats
@@ -88,7 +90,9 @@ def _safe_remove(c: DownloadClient, q: QueueItem, delete_data: bool) -> None:
 
 def _import(db: Session, q: QueueItem, c: DownloadClient) -> bool:
     q.status = "importing"
-    db.flush()
+    # commit + announce now, so the UI can show "importing" while files are copied/moved
+    db.commit()
+    publish("queue.updated", {"id": q.id})
     path = map_path(db, c, q.output_path)
     mode = "move" if q.protocol == "usenet" else "copy"
     try:

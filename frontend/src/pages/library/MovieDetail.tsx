@@ -9,6 +9,7 @@ import { Fanart, Poster, Ratings, SourceBadges, TagList } from "../../components
 import { Modal, useConfirm } from "../../components/Modal";
 import { TagSelect } from "../../components/TagSelect";
 import { InteractiveSearch } from "../../components/InteractiveSearch";
+import { DownloadStatus, useDownloads } from "../../components/DownloadStatus";
 import { useToast } from "../../components/Toast";
 import { fmtDate, fmtSize, langLabel, AVAILABILITY_LABELS, MOVIE_STATUS_LABELS } from "../../format";
 import { HistoryTable } from "./HistoryTable";
@@ -22,6 +23,7 @@ export function MovieDetail() {
   const { data: m, isLoading, error } = useQuery({ queryKey: ["movie", id], queryFn: () => api.movie(id) });
   const { data: profiles = [] } = useProfiles();
   const { data: tags = [] } = useTags();
+  const download = useDownloads().movies.get(id);
   const [tab, setTab] = useState<"info" | "history">("info");
   const [dialog, setDialog] = useState<null | "edit" | "delete" | "rename" | "search" | "rematch">(null);
   const command = useCommand();
@@ -83,7 +85,7 @@ export function MovieDetail() {
             {m.runtime ? <span><Clock size={14} /> {m.runtime} min</span> : null}
             {m.certification && <Badge tone="muted">{m.certification}</Badge>}
             <Badge tone={m.status === "released" ? "success" : m.status === "in_cinemas" ? "info" : "muted"}>{MOVIE_STATUS_LABELS[m.status] ?? m.status}</Badge>
-            {m.has_file ? <Badge tone="success">{m.file?.quality}</Badge> : <Badge tone={m.monitored ? "danger" : "muted"}>Datei fehlt</Badge>}
+            {download ? <DownloadStatus q={download} wide /> : m.has_file ? <Badge tone="success">{m.file?.quality}</Badge> : <Badge tone={m.monitored ? "danger" : "muted"}>Datei fehlt</Badge>}
             {m.studio && <span>{m.studio}</span>}
             {m.collection && <span>Sammlung: {m.collection}</span>}
           </div>
@@ -139,6 +141,7 @@ export function MovieDetail() {
       {tab === "info" ? (
         <div className="detail-grid">
           <Card title="Datei" actions={m.file && <button className="btn btn-sm btn-danger-outline" onClick={deleteFile} title="Datei löschen"><FileX size={14} /> Datei löschen</button>}>
+            {download && <div className="mb"><DownloadStatus q={download} wide /></div>}
             {m.file ? (
               <KV
                 items={[
@@ -154,7 +157,7 @@ export function MovieDetail() {
                 ]}
               />
             ) : (
-              <div className="muted">Keine Datei vorhanden.</div>
+              !download && <div className="muted">Keine Datei vorhanden.</div>
             )}
           </Card>
           <Card title="Veröffentlichung">

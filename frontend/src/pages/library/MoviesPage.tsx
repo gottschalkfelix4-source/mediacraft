@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Plus, Bookmark, BookmarkX, CheckCircle2, CircleDashed, RefreshCw, Film } from "lucide-react";
 import { useMovies, useProfiles, useCommand, useStored } from "../../hooks";
 import { Empty, ErrorBox, Loading, PageHeader, Badge } from "../../components/ui";
+import { DownloadStatus, useDownloads } from "../../components/DownloadStatus";
 import { Poster } from "../../components/Media";
 import { fmtDate, fmtSize, AVAILABILITY_LABELS, MOVIE_STATUS_LABELS } from "../../format";
 import { LibraryToolbar, textMatch, type FilterMode, type SortMode, type ViewMode } from "./common";
@@ -29,6 +30,7 @@ export function MoviesPage() {
     return s;
   }, [data, search, filter, sort]);
 
+  const downloads = useDownloads();
   const profileName = (id: number) => profiles.find((p) => p.id === id)?.name ?? "–";
 
   return (
@@ -88,7 +90,7 @@ export function MoviesPage() {
                     <td>{MOVIE_STATUS_LABELS[m.status] ?? m.status}</td>
                     <td>{profileName(m.quality_profile_id)}</td>
                     <td>{AVAILABILITY_LABELS[m.minimum_availability] ?? m.minimum_availability}</td>
-                    <td>{m.file ? <Badge tone="success">{m.file.quality}</Badge> : <Badge tone={m.monitored ? "danger" : "muted"}>fehlt</Badge>}</td>
+                    <td>{downloads.movies.get(m.id) ? <DownloadStatus q={downloads.movies.get(m.id)!} /> : m.file ? <Badge tone="success">{m.file.quality}</Badge> : <Badge tone={m.monitored ? "danger" : "muted"}>fehlt</Badge>}</td>
                     <td className="num">{m.file ? fmtSize(m.file.size) : "–"}</td>
                     <td>{fmtDate(m.added)}</td>
                   </tr>

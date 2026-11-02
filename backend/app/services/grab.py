@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from ..core import decision as dec
 from ..core.bencode import info_hash, magnet_hash
-from ..core.events import publish
+from ..core.events import live_state, publish
 from ..downloadclients.base import AddRequest, ClientError
 from ..downloadclients.manager import get_client, pick_client
 from ..indexers import newznab
@@ -92,6 +92,7 @@ def grab(db: Session, r: Release, *, quality: str, languages: list[str], format_
     target = db.get(Movie, movie_id) if movie_id else db.get(Series, series_id)
     name = target.title if target else r.title
     log.info("Grabbed '%s' von %s → %s", r.title, idx.name, client_cfg.name)
+    live_state["active_downloads"] = True  # poll the client quickly from now on
     publish("queue.updated", {"id": item.id})
     notify("grab", f"{name}: {r.title} ({quality}) via {idx.name}",
            {"title": r.title, "quality": quality, "indexer": idx.name,

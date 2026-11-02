@@ -11,6 +11,7 @@ import { Fanart, Poster, Ratings, SourceBadges, TagList } from "../../components
 import { Modal, useConfirm } from "../../components/Modal";
 import { TagSelect } from "../../components/TagSelect";
 import { InteractiveSearch } from "../../components/InteractiveSearch";
+import { DownloadStatus, useDownloads } from "../../components/DownloadStatus";
 import { useToast } from "../../components/Toast";
 import { epCode, fmtDate, fmtDateTime, fmtSize, langLabel, parseDate, providerLabel, MONITOR_OPTIONS, SERIES_STATUS_LABELS, SERIES_TYPE_LABELS } from "../../format";
 import { HistoryTable } from "./HistoryTable";
@@ -211,6 +212,7 @@ function SeasonBlock({ series, season, monitored, stats, episodes, open, onToggl
   const toast = useToast();
   const confirm = useConfirm();
   const now = useNow(60_000);
+  const downloads = useDownloads();
   const label = season === 0 ? "Specials" : `Staffel ${season}`;
 
   const setSeasonMon = useApiMutation((v: boolean) => api.updateSeason(series.id, season, v), {
@@ -306,7 +308,9 @@ function SeasonBlock({ series, season, monitored, stats, episodes, open, onToggl
                       {air ? fmtDate(air) : e.air_date ? fmtDate(e.air_date) : "TBA"}
                     </td>
                     <td>
-                      {e.file ? (
+                      {downloads.episodes.get(e.id) ? (
+                        <DownloadStatus q={downloads.episodes.get(e.id)!} />
+                      ) : e.file ? (
                         <span className="file-cell" title={`${e.file.path}\n${fmtSize(e.file.size)}${e.file.languages?.length ? " · " + e.file.languages.map(langLabel).join(", ") : ""}`}>
                           <Badge tone="success">{e.file.quality}</Badge>
                           <span className="muted small">{fmtSize(e.file.size)}</span>
