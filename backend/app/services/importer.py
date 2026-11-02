@@ -313,12 +313,24 @@ def process_download(db: Session, q: QueueItem, path: str, mode: str) -> tuple[b
         import_progress.pop(q.id, None)
 
 
+def _already_imported(db: Session, q: QueueItem) -> bool:
+    if q.media_type == "movie":
+        m = db.get(Movie, q.movie_id) if q.movie_id else None
+        return bool(m and m.file_id)
+    if not q.episode_ids:
+        return False
+    eps = db.query(Episode).filter(Episode.id.in_(q.episode_ids)).all()
+    return bool(eps) and all(e.file_id for e in eps)
+
+
 def _process_download(db: Session, q: QueueItem, path: str, mode: str) -> tuple[bool, list[str]]:
     cfg = settings_mod.get(db, "media")
     if not path or not os.path.exists(path):
         return False, [f"Pfad nicht gefunden: {path} (Remote-Path-Mapping prüfen)"]
     files = video_files(path, cfg.get("sample_max_mb", 150))
     if not files:
+        if _already_imported(db, q):  # e.g. an interrupted earlier run moved everything already
+            return True, ["Bereits importiert – keine Videodateien mehr im Download"]
         return False, ["Keine Videodateien im Download gefunden"]
     messages: list[str] = []
     if q.media_type == "movie":
@@ -336,6 +348,7 @@ def _process_download(db: Session, q: QueueItem, path: str, mode: str) -> tuple[
         p.edition = p.edition or rp.edition
         try:
             import_movie_file(db, movie, src, p, mode=mode, queue_item=q, release_name=q.title)
+            db.commit()
         except (OSError, ImportError_) as e:
             return False, [f"Import fehlgeschlagen: {e}"]
         return True, messages
@@ -368,10 +381,14 @@ def _process_download(db: Session, q: QueueItem, path: str, mode: str) -> tuple[
         p.release_group = p.release_group or rp.release_group
         try:
             import_episode_file(db, series, eps, src, p, mode=mode, queue_item=q, release_name=q.title)
+            # the file is already moved: persist it now. Holding one transaction over a whole season pack would
+            # block the database for minutes, and a later error would roll back records of files already moved.
+            db.commit()
             imported_any = True
             missing -= {e.id for e in eps}
         except (OSError, ImportError_) as e:
-            messages.append(f"{os.path.basename(src)}: {e}")
+            # counts as failed: the file is still in the download, "Import wiederholen" picks it up again
+            messages.append(f"{os.path.basename(src)}: Import fehlgeschlagen: {e}")
     if missing:
         messages.append(f"{len(missing)} erwartete Episode(n) nicht im Download gefunden")
     return imported_any and not [m for m in messages if "fehlgeschlagen" in m], messages

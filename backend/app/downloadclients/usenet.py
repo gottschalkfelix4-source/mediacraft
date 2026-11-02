@@ -89,8 +89,15 @@ class SABnzbd(BaseClient):
         return out
 
     def remove(self, download_id: str, delete_data: bool = True) -> None:
-        self._api({"mode": "queue", "name": "delete", "value": download_id, "del_files": int(delete_data)})
-        self._api({"mode": "history", "name": "delete", "value": download_id, "del_files": int(delete_data)})
+        # the job is either still queued or already in the history – SABnzbd answers status=false for the other one
+        errors = []
+        for where in ("queue", "history"):
+            try:
+                self._api({"mode": where, "name": "delete", "value": download_id, "del_files": int(delete_data)})
+            except ClientError as e:
+                errors.append(str(e))
+        if len(errors) == 2:
+            raise ClientError(errors[-1])
 
 
 class NZBGet(BaseClient):

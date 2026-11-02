@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from datetime import timedelta
 
 from sqlalchemy.orm import Session
@@ -20,7 +21,25 @@ ACTIVE = ("grabbed", "queued", "downloading", "completed", "importing")  # worth
 TRACKED = ("grabbed", "queued", "downloading", "paused", "warning", "completed", "importing", "import_blocked", "seeding")
 
 
+_check_lock = threading.Lock()  # one check_downloads at a time (scheduler + "Downloads prüfen" button)
+_import_guard = threading.Lock()
+_importing: set[int] = set()  # queue ids being imported right now
+
+
+def import_running(qid: int) -> bool:
+    return qid in _importing
+
+
 def check_downloads(db: Session) -> dict:
+    if not _check_lock.acquire(blocking=False):
+        return {"skipped": "läuft bereits"}
+    try:
+        return _check_downloads(db)
+    finally:
+        _check_lock.release()
+
+
+def _check_downloads(db: Session) -> dict:
     cfg = settings_mod.get(db, "downloads")
     stats = {"checked": 0, "imported": 0, "failed": 0, "errors": []}
     clients = db.query(DownloadClient).filter(DownloadClient.enabled.is_(True)).all()
@@ -36,6 +55,8 @@ def check_downloads(db: Session) -> dict:
             log.warning("Downloadclient %s: %s", c.name, e)
             continue
         for q in items:
+            if q.id in _importing:  # e.g. "Import wiederholen" is copying it right now
+                continue
             stats["checked"] += 1
             ci = client_items.get(q.download_id.lower())
             if ci is None:
@@ -89,6 +110,22 @@ def _safe_remove(c: DownloadClient, q: QueueItem, delete_data: bool) -> None:
 
 
 def _import(db: Session, q: QueueItem, c: DownloadClient) -> bool:
+    with _import_guard:
+        if q.id in _importing:
+            return False
+        _importing.add(q.id)
+    try:
+        db.flush()  # keep the client data just set (output path, ...) – refresh would drop it
+        db.refresh(q)  # another run may have finished it meanwhile
+        if q.status == "imported":
+            return True
+        return _do_import(db, q, c)
+    finally:
+        with _import_guard:
+            _importing.discard(q.id)
+
+
+def _do_import(db: Session, q: QueueItem, c: DownloadClient) -> bool:
     q.status = "importing"
     # commit + announce now, so the UI can show "importing" while files are copied/moved
     db.commit()
@@ -99,6 +136,7 @@ def _import(db: Session, q: QueueItem, c: DownloadClient) -> bool:
         ok, messages = process_download(db, q, path, mode)
     except Exception as e:  # never let one broken import stop the queue
         log.exception("Import von %s fehlgeschlagen", q.title)
+        db.rollback()  # files imported so far are already committed one by one
         ok, messages = False, [f"Unerwarteter Fehler: {e}"]
     q.messages = messages
     if ok:
