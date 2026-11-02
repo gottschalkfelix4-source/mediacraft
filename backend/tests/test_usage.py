@@ -130,6 +130,8 @@ def test_probe_marks_indexers_without_apilimits(monkeypatch):
         monkeypatch.setattr(newznab, "_request", lambda db, i, params, kind, manual: (rss % b"", 5))
         newznab.probe_limits(s, idx)
         assert idx.remote_limits["supported"] is False
+        for e in s.query(IndexerEvent).filter(IndexerEvent.indexer_id == idx.id):
+            e.timestamp -= timedelta(minutes=1)  # keep it clearly before the next report (Windows clock is ~15 ms)
         body = b'<newznab:apilimits apicurrent="7" apimax="1000" grabcurrent="12" grabmax="400" graboldesttime="Thu, 30 Apr 2020 19:54:30 +0200"/>'
         monkeypatch.setattr(newznab, "_request", lambda db, i, params, kind, manual: (rss % body, 5))
         rl = newznab.probe_limits(s, idx)
