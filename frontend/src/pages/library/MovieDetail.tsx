@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Search, UserSearch, RefreshCw, FileEdit, Pencil, Trash2, Bookmark, BookmarkX, FolderOpen, Clock, ExternalLink, FileX } from "lucide-react";
+import { Search, UserSearch, RefreshCw, FileEdit, Link2, Pencil, Trash2, Bookmark, BookmarkX, FolderOpen, Clock, ExternalLink, FileX } from "lucide-react";
 import { api, errorMessage } from "../../api";
 import { useApiMutation, useCommand, useProfiles, useTags } from "../../hooks";
 import { Badge, Card, ErrorBox, Field, KV, Loading, Select, Tabs, TextInput, Toggle, Spinner } from "../../components/ui";
@@ -14,6 +14,7 @@ import { fmtDate, fmtSize, langLabel, AVAILABILITY_LABELS, MOVIE_STATUS_LABELS }
 import { HistoryTable } from "./HistoryTable";
 import { RenameDialog } from "./RenameDialog";
 import { DeleteDialog } from "./DeleteDialog";
+import { RematchDialog } from "./RematchDialog";
 import type { MinimumAvailability, Movie } from "../../types";
 
 export function MovieDetail() {
@@ -22,7 +23,7 @@ export function MovieDetail() {
   const { data: profiles = [] } = useProfiles();
   const { data: tags = [] } = useTags();
   const [tab, setTab] = useState<"info" | "history">("info");
-  const [dialog, setDialog] = useState<null | "edit" | "delete" | "rename" | "search">(null);
+  const [dialog, setDialog] = useState<null | "edit" | "delete" | "rename" | "search" | "rematch">(null);
   const command = useCommand();
   const qc = useQueryClient();
   const nav = useNavigate();
@@ -113,6 +114,9 @@ export function MovieDetail() {
         <button className="btn" onClick={() => command("refresh_movie", { movie_id: m.id }, `Aktualisierung „${m.title}“`)} title="Metadaten aktualisieren und Ordner scannen">
           <RefreshCw size={16} /> Aktualisieren
         </button>
+        <button className="btn" onClick={() => setDialog("rematch")} title="Falsch erkannt? Mit einem anderen Metadaten-Eintrag verknüpfen">
+          <Link2 size={16} /> Neu zuordnen
+        </button>
         <button className="btn" onClick={() => setDialog("rename")} disabled={!m.has_file} title="Datei umbenennen">
           <FileEdit size={16} /> Umbenennen
         </button>
@@ -171,6 +175,7 @@ export function MovieDetail() {
         </Card>
       )}
 
+      {dialog === "rematch" && <RematchDialog kind="movie" item={m} onClose={() => setDialog(null)} />}
       {dialog === "edit" && <EditMovieDialog m={m} onClose={() => setDialog(null)} />}
       {dialog === "delete" && (
         <DeleteDialog

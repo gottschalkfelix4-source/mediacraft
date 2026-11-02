@@ -76,6 +76,14 @@ def movie_folder(db: Session, movie: Movie) -> str:
     return naming.render(cfg["movie_folder"], naming.movie_values(movie), cfg["colon_replacement"])
 
 
+def _check_movie_duplicate(db: Session, mids: dict, exclude_id: int | None = None) -> None:
+    for key, col in (("tmdb", Movie.tmdb_id), ("imdb", Movie.imdb_id), ("anilist", Movie.anilist_id)):
+        if mids.get(key):
+            existing = db.query(Movie).filter(col == mids[key], Movie.id != exclude_id).first()
+            if existing:
+                raise LibraryError(f"'{existing.title}' ist bereits in der Bibliothek")
+
+
 def add_movie(db: Session, ids: dict, quality_profile_id: int, root_folder: str, *, monitored: bool = True,
               minimum_availability: str = "released", tags: list[int] | None = None, path: str | None = None,
               meta: dict | None = None) -> Movie:
@@ -84,12 +92,7 @@ def add_movie(db: Session, ids: dict, quality_profile_id: int, root_folder: str,
     meta = meta or MetadataManager.from_db(db).get_movie(ids)
     if not meta:
         raise LibraryError("Film bei keinem Metadaten-Provider gefunden")
-    mids = meta.get("ids") or {}
-    for key, col in (("tmdb", Movie.tmdb_id), ("imdb", Movie.imdb_id), ("anilist", Movie.anilist_id)):
-        if mids.get(key):
-            existing = db.query(Movie).filter(col == mids[key]).first()
-            if existing:
-                raise LibraryError(f"'{existing.title}' ist bereits in der Bibliothek")
+    _check_movie_duplicate(db, meta.get("ids") or {})
     movie = Movie(quality_profile_id=quality_profile_id, root_folder=root_folder, monitored=monitored,
                   minimum_availability=minimum_availability, tags=tags or [], title=meta.get("title") or "?", path="")
     apply_movie_meta(movie, meta)
@@ -107,6 +110,24 @@ def refresh_movie(db: Session, movie: Movie, mgr: MetadataManager | None = None)
     if meta:
         apply_movie_meta(movie, meta)
         publish("movie.updated", {"id": movie.id})
+
+
+def rematch_movie(db: Session, movie: Movie, ids: dict, mgr: MetadataManager | None = None) -> None:
+    """Assign the movie to a different metadata entry (fix a wrong automatic match).
+
+    Folder, file and settings stay; only the metadata and IDs are replaced.
+    """
+    mgr = mgr or MetadataManager.from_db(db)
+    meta = mgr.get_movie(ids, anime=bool(ids.get("anilist")))
+    if not meta:
+        raise LibraryError("Film bei keinem Metadaten-Provider gefunden")
+    _check_movie_duplicate(db, meta.get("ids") or {}, exclude_id=movie.id)
+    old = movie.title
+    # apply_movie_meta keeps old values where the new entry has none – the old match must not leak through
+    movie.tmdb_id = movie.imdb_id = movie.anilist_id = movie.year = movie.runtime = None
+    apply_movie_meta(movie, meta)
+    log.info("Film neu zugeordnet: %s -> %s (%s)", old, movie.title, movie.year)
+    publish("movie.updated", {"id": movie.id})
 
 
 def delete_movie(db: Session, movie: Movie, delete_files: bool = False) -> None:
@@ -248,6 +269,15 @@ def apply_monitoring(series: Series, option: str) -> None:
         series.monitor_new_seasons = False
 
 
+def _check_series_duplicate(db: Session, mids: dict, exclude_id: int | None = None) -> None:
+    for key, col in (("tvdb", Series.tvdb_id), ("tmdb", Series.tmdb_id), ("tvmaze", Series.tvmaze_id),
+                     ("anilist", Series.anilist_id)):
+        if mids.get(key):
+            ex = db.query(Series).filter(col == int(mids[key]), Series.id != exclude_id).first()
+            if ex:
+                raise LibraryError(f"'{ex.title}' ist bereits in der Bibliothek")
+
+
 def add_series(db: Session, ids: dict, quality_profile_id: int, root_folder: str, *, monitored: bool = True,
                monitor: str = "all", series_type: str = "standard", season_folder: bool = True,
                tags: list[int] | None = None, path: str | None = None, episode_source: str = "",
@@ -258,13 +288,7 @@ def add_series(db: Session, ids: dict, quality_profile_id: int, root_folder: str
     meta = mgr.get_series(ids, with_episodes=True, anime=series_type == "anime", preferred_source=episode_source)
     if not meta:
         raise LibraryError("Serie bei keinem Metadaten-Provider gefunden")
-    mids = meta.get("ids") or {}
-    for key, col in (("tvdb", Series.tvdb_id), ("tmdb", Series.tmdb_id), ("tvmaze", Series.tvmaze_id),
-                     ("anilist", Series.anilist_id)):
-        if mids.get(key):
-            ex = db.query(Series).filter(col == int(mids[key])).first()
-            if ex:
-                raise LibraryError(f"'{ex.title}' ist bereits in der Bibliothek")
+    _check_series_duplicate(db, meta.get("ids") or {})
     if series_type == "standard" and meta.get("is_anime"):
         series_type = "anime"
     series = Series(quality_profile_id=quality_profile_id, root_folder=root_folder, monitored=monitored,
@@ -297,6 +321,53 @@ def refresh_series(db: Session, series: Series, mgr: MetadataManager | None = No
     if not meta:
         return {}
     stats = apply_series_meta(db, series, meta)
+    publish("series.updated", {"id": series.id})
+    return stats
+
+
+def rematch_series(db: Session, series: Series, ids: dict, mgr: MetadataManager | None = None) -> dict:
+    """Assign the series to a different metadata entry (fix a wrong automatic match).
+
+    Episodes are kept by season/number, so their files and monitoring survive. Episodes the new entry
+    doesn't have are dropped; their files are only unlinked (not deleted) so the next disk scan can
+    re-assign them.
+    """
+    mgr = mgr or MetadataManager.from_db(db)
+    meta = mgr.get_series(ids, with_episodes=True, anime=series.series_type == "anime" or bool(ids.get("anilist")),
+                          preferred_source=series.episode_source)
+    if not meta:
+        raise LibraryError("Serie bei keinem Metadaten-Provider gefunden")
+    _check_series_duplicate(db, meta.get("ids") or {}, exclude_id=series.id)
+    if series.series_type == "standard" and meta.get("is_anime"):
+        series.series_type = "anime"
+    old = series.title
+    # apply_series_meta keeps old values where the new entry has none – the old match must not leak through
+    for k in ("tvdb", "tmdb", "tvmaze", "imdb", "anilist"):
+        setattr(series, f"{k}_id", None)
+    series.year = series.runtime = None
+    for e in series.episodes:
+        e.title = e.overview = None
+    stats = apply_series_meta(db, series, meta)
+    stats["unlinked"] = 0
+    if meta.get("episodes"):
+        keys = {(e["season"], e["number"]) for e in meta["episodes"]}
+        for ep in [e for e in series.episodes if (e.season, e.number) not in keys]:
+            if ep.file_id:
+                fid = ep.file_id
+                for other in series.episodes:
+                    if other.file_id == fid:
+                        other.file_id = None
+                db.flush()
+                f = db.get(MediaFile, fid)
+                if f:
+                    db.delete(f)
+                stats["unlinked"] += 1
+            series.episodes.remove(ep)
+            stats["removed"] += 1
+        valid = {n for n, _ in keys} | {x["number"] for x in meta.get("seasons") or []}
+        for se in [x for x in series.seasons if x.number not in valid]:
+            series.seasons.remove(se)
+    log.info("Serie neu zugeordnet: %s -> %s (%s)", old, series.title, series.year)
     publish("series.updated", {"id": series.id})
     return stats
 

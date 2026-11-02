@@ -165,6 +165,7 @@ export const api = {
     path?: string;
   }) => post<T.Movie>("/movies", b),
   updateMovie: (id: number, b: Partial<T.Movie> & { move_files?: boolean }) => put<T.Movie>(`/movies/${id}`, b),
+  rematchMovie: (id: number, ids: T.LookupIds) => post<T.Movie>(`/movies/${id}/rematch`, { ids }),
   bulkUpdateMovies: (ids: number[], changes: Partial<T.Movie>) => put<{ updated: number }>("/movies", { ids, changes }),
   deleteMovie: (id: number, deleteFiles: boolean) => del<Ok>(`/movies/${id}`, { delete_files: deleteFiles }),
   deleteMovieFile: (id: number) => del<T.Movie>(`/movies/${id}/file`),
@@ -191,6 +192,7 @@ export const api = {
   updateSeason: (id: number, season: number, monitored: boolean) =>
     put<T.Series>(`/series/${id}/seasons/${season}`, { monitored }),
   seriesMonitoring: (id: number, monitor: string) => post<T.Series>(`/series/${id}/monitoring`, { monitor }),
+  rematchSeries: (id: number, ids: T.LookupIds) => post<T.Series>(`/series/${id}/rematch`, { ids }),
   deleteSeries: (id: number, deleteFiles: boolean) => del<Ok>(`/series/${id}`, { delete_files: deleteFiles }),
   episodes: (seriesId: number) => get<T.Episode[]>(`/series/${seriesId}/episodes`),
   monitorEpisodes: (ids: number[], monitored: boolean) => put<Ok>("/episodes/monitor", { ids, monitored }),

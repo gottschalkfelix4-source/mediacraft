@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Search, UserSearch, RefreshCw, FileEdit, Pencil, Trash2, Bookmark, BookmarkX, FolderOpen, Clock, ExternalLink, ChevronDown, ChevronRight, ListChecks, FileX, Tv,
+  Search, UserSearch, RefreshCw, FileEdit, Link2, Pencil, Trash2, Bookmark, BookmarkX, FolderOpen, Clock, ExternalLink, ChevronDown, ChevronRight, ListChecks, FileX, Tv,
 } from "lucide-react";
 import { api, errorMessage } from "../../api";
 import { useApiMutation, useCommand, useNow, useProfiles, useTags } from "../../hooks";
@@ -16,6 +16,7 @@ import { epCode, fmtDate, fmtDateTime, fmtSize, langLabel, parseDate, providerLa
 import { HistoryTable } from "./HistoryTable";
 import { RenameDialog } from "./RenameDialog";
 import { DeleteDialog } from "./DeleteDialog";
+import { RematchDialog } from "./RematchDialog";
 import { EPISODE_SOURCE_OPTIONS, SERIES_TYPE_OPTIONS } from "./AddSeries";
 import { seriesProgress } from "./SeriesPage";
 import type { Episode, Series, SeriesType } from "../../types";
@@ -29,7 +30,7 @@ export function SeriesDetail() {
   const { data: profiles = [] } = useProfiles();
   const { data: tags = [] } = useTags();
   const [tab, setTab] = useState<"seasons" | "history">("seasons");
-  const [dialog, setDialog] = useState<null | "edit" | "delete" | "rename" | "monitor">(null);
+  const [dialog, setDialog] = useState<null | "edit" | "delete" | "rename" | "monitor" | "rematch">(null);
   const [searchTarget, setSearchTarget] = useState<SearchTarget | null>(null);
   const [expanded, setExpanded] = useState<Set<number> | null>(null);
   const command = useCommand();
@@ -121,6 +122,9 @@ export function SeriesDetail() {
         <button className="btn" onClick={() => command("refresh_series", { series_id: s.id }, `Aktualisierung „${s.title}“`)} title="Metadaten aktualisieren und Ordner scannen">
           <RefreshCw size={16} /> Aktualisieren
         </button>
+        <button className="btn" onClick={() => setDialog("rematch")} title="Falsch erkannt? Mit einem anderen Metadaten-Eintrag verknüpfen">
+          <Link2 size={16} /> Neu zuordnen
+        </button>
         <button className="btn" onClick={() => setDialog("rename")} title="Dateien umbenennen">
           <FileEdit size={16} /> Umbenennen
         </button>
@@ -169,6 +173,7 @@ export function SeriesDetail() {
         </Card>
       )}
 
+      {dialog === "rematch" && <RematchDialog kind="series" item={s} onClose={() => setDialog(null)} />}
       {dialog === "edit" && <EditSeriesDialog s={s} onClose={() => setDialog(null)} />}
       {dialog === "monitor" && <MonitorDialog s={s} onClose={() => setDialog(null)} />}
       {dialog === "delete" && (

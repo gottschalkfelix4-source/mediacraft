@@ -1448,3 +1448,8 @@ tr.rel-details td { background: var(--bg-elev-2); font-size: 12.5px; }
   .page-header h1 { font-size: 19px; }
   .w-progress { width: 120px; }
 }
+
+/* re-match dialog */
+.rematch-results { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+.rematch-results .lookup-card .poster-md { width: 80px; }
+.rematch-results .lookup-overview { -webkit-line-clamp: 2; }

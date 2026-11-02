@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Search, Plus, Check, ExternalLink } from "lucide-react";
@@ -67,7 +67,8 @@ export function AddMovie() {
   );
 }
 
-export function LookupCard({ r, kind, onAdd }: { r: LookupResult; kind: "movie" | "series"; onAdd: () => void }) {
+/** `action` replaces the default open/add button (used by the re-match dialog). */
+export function LookupCard({ r, kind, onAdd, action }: { r: LookupResult; kind: "movie" | "series"; onAdd?: () => void; action?: ReactNode }) {
   const existing = r.existing_id;
   const link = kind === "movie" ? `/movies/${existing}` : `/series/${existing}`;
   const extLinks: [string, string][] = [];
@@ -109,7 +110,7 @@ export function LookupCard({ r, kind, onAdd }: { r: LookupResult; kind: "movie" 
             ))}
           </span>
           <span className="ml-auto">
-            {existing ? (
+            {action ?? (existing ? (
               <Link to={link} className="btn">
                 Öffnen
               </Link>
@@ -117,7 +118,7 @@ export function LookupCard({ r, kind, onAdd }: { r: LookupResult; kind: "movie" 
               <button className="btn btn-primary" onClick={onAdd}>
                 <Plus size={16} /> Hinzufügen
               </button>
-            )}
+            ))}
           </span>
         </div>
       </div>

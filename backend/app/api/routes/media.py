@@ -111,6 +111,18 @@ def bulk_update_movies(body: dict, db: Session = Depends(get_db)):
     return {"updated": len(ids)}
 
 
+@router.post("/movies/{mid}/rematch")
+def rematch_movie(mid: int, body: dict, db: Session = Depends(get_db)):
+    m = get_or_404(db, Movie, mid)
+    try:
+        library.rematch_movie(db, m, body.get("ids") or {})
+    except library.LibraryError as e:
+        raise HTTPException(400, str(e))
+    db.commit()
+    maintenance.scan_movie(db, m)
+    return library.movie_to_dict(m)
+
+
 @router.delete("/movies/{mid}")
 def delete_movie(mid: int, delete_files: bool = False, db: Session = Depends(get_db)):
     library.delete_movie(db, get_or_404(db, Movie, mid), delete_files)
@@ -193,6 +205,18 @@ def update_series(sid: int, body: dict, db: Session = Depends(get_db)):
     apply(s, body, SERIES_EDIT)
     if "monitored" in body and body["monitored"] is False:
         pass  # episodes keep their own flags, like Sonarr
+    return library.series_to_dict(s, library.series_stats(db, [sid]).get(sid))
+
+
+@router.post("/series/{sid}/rematch")
+def rematch_series(sid: int, body: dict, db: Session = Depends(get_db)):
+    s = get_or_404(db, Series, sid)
+    try:
+        library.rematch_series(db, s, body.get("ids") or {})
+    except library.LibraryError as e:
+        raise HTTPException(400, str(e))
+    db.commit()
+    maintenance.scan_series(db, s)
     return library.series_to_dict(s, library.series_stats(db, [sid]).get(sid))
 
 
