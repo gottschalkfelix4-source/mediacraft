@@ -110,3 +110,23 @@ def test_rematch_series_keeps_files_by_episode_number(tmp_root):
         assert stats["unlinked"] == 1
         assert db.query(MediaFile).filter(MediaFile.series_id == s.id).count() == 1
         db.rollback()
+
+
+def test_import_copy_reports_progress(tmp_root):
+    from app.services import importer
+
+    src_dir = tmp_root / "dl" / "Show.S01E01.1080p.WEB-DL-GRP"
+    src_dir.mkdir(parents=True)
+    src = src_dir / "Show.S01E01.1080p.WEB-DL-GRP.mkv"
+    src.write_bytes(b"\1" * (20 << 20))  # 20 MB -> several 8 MB chunks
+    seen = []
+    tracker = importer._ImportTracker(4711, [str(src)])
+    tracker.add = (lambda orig: lambda n: (orig(n), seen.append(importer.import_progress[4711]["done"])))(tracker.add)
+    importer._tracking.tracker = tracker
+    try:
+        assert importer.transfer(str(src), str(tmp_root / "lib" / "e.mkv"), "copy", use_hardlinks=False) == "copy"
+    finally:
+        importer._tracking.tracker = None
+        importer.import_progress.pop(4711, None)
+    assert seen == [8 << 20, 16 << 20, 20 << 20]  # grows chunk by chunk up to the full size
+    assert (tmp_root / "lib" / "e.mkv").stat().st_size == 20 << 20

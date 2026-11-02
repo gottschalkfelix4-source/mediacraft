@@ -7,6 +7,8 @@ import logging
 import os
 import re
 import shutil
+import threading
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -57,22 +59,69 @@ def _free_space_ok(dest_dir: str, size: int, min_free_mb: int) -> bool:
         return True
 
 
+# queue id -> {"done": bytes, "total": bytes} while a download is being imported (served by GET /queue)
+import_progress: dict[int, dict] = {}
+_tracking = threading.local()
+
+
+class _ImportTracker:
+    """Counts transferred bytes of a download's video files and announces progress (max. 2x per second)."""
+
+    def __init__(self, qid: int, files: list[str]):
+        self.qid, self.files = qid, set(files)
+        self.total = sum(os.path.getsize(f) for f in files) or 1
+        self.done, self._last = 0, 0.0
+        import_progress[qid] = {"done": 0, "total": self.total}
+        publish("queue.updated", {"id": qid})
+
+    def add(self, n: int) -> None:
+        self.done = min(self.done + n, self.total)
+        import_progress[self.qid] = {"done": self.done, "total": self.total}
+        now = time.monotonic()
+        if now - self._last >= 0.5 or self.done >= self.total:
+            self._last = now
+            publish("queue.updated", {"id": self.qid})
+
+
+def _copy(src: str, dest: str, report) -> None:
+    """Chunked copy so the import progress can be shown; keeps timestamps/permissions like copy2."""
+    with open(src, "rb") as fi, open(dest, "wb") as fo:
+        while chunk := fi.read(8 << 20):
+            fo.write(chunk)
+            if report:
+                report(len(chunk))
+    shutil.copystat(src, dest)
+
+
 def transfer(src: str, dest: str, mode: str, use_hardlinks: bool = True) -> str:
     """mode: move | copy. Copies try a hardlink first. Returns the method actually used."""
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     if os.path.exists(dest):
         os.remove(dest)
+    tracker = getattr(_tracking, "tracker", None)
+    report = tracker.add if tracker and src in tracker.files else None
     if mode == "move":
-        shutil.move(src, dest)
+        try:
+            os.rename(src, dest)  # same filesystem: instant
+            if report:
+                report(os.path.getsize(dest))
+            return "move"
+        except OSError as e:
+            if e.errno != errno.EXDEV:
+                raise
+        _copy(src, dest, report)
+        os.remove(src)
         return "move"
     if use_hardlinks:
         try:
             os.link(src, dest)
+            if report:
+                report(os.path.getsize(dest))
             return "hardlink"
         except OSError as e:
             if e.errno not in (errno.EXDEV, errno.EPERM, errno.ENOTSUP, errno.EMLINK, errno.EACCES) and os.name != "nt":
                 log.debug("Hardlink fehlgeschlagen (%s), kopiere", e)
-    shutil.copy2(src, dest)
+    _copy(src, dest, report)
     return "copy"
 
 
@@ -252,6 +301,19 @@ def import_episode_file(db: Session, series: Series, episodes: list[Episode], sr
 # ------------------------------------------------------------------------------------- downloads
 def process_download(db: Session, q: QueueItem, path: str, mode: str) -> tuple[bool, list[str]]:
     """Import a finished download. Returns (fully_imported, messages)."""
+    cfg = settings_mod.get(db, "media")
+    files = video_files(path, cfg.get("sample_max_mb", 150)) if path and os.path.exists(path) else []
+    if q.media_type == "movie" and files:
+        files = [max(files, key=os.path.getsize)]  # only the main file is imported
+    _tracking.tracker = _ImportTracker(q.id, files) if files else None
+    try:
+        return _process_download(db, q, path, mode)
+    finally:
+        _tracking.tracker = None
+        import_progress.pop(q.id, None)
+
+
+def _process_download(db: Session, q: QueueItem, path: str, mode: str) -> tuple[bool, list[str]]:
     cfg = settings_mod.get(db, "media")
     if not path or not os.path.exists(path):
         return False, [f"Pfad nicht gefunden: {path} (Remote-Path-Mapping prüfen)"]

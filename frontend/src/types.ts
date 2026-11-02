@@ -729,6 +729,7 @@ export interface QueueItem {
   added: string | null;
   updated: string | null;
   manual: boolean;
+  import_progress: number | null; // % while files are copied into the library
 }
 
 export interface HistoryRecord {

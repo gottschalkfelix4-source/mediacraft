@@ -25,23 +25,15 @@ export function useDownloads() {
   }, [data]);
 }
 
-/** Two sheets of paper, one copying over to the other – shown while a download is imported. */
-function CopyAnimation() {
-  return (
-    <svg className="copy-anim" width="26" height="16" viewBox="0 0 26 16" aria-hidden="true">
-      <path d="M1.5 1.5h6l3 3v10h-9z" className="copy-doc" />
-      <path d="M15.5 1.5h6l3 3v10h-9z" className="copy-doc" />
-      <rect x="3" y="6" width="6" height="7" rx="1" className="copy-sheet" />
-    </svg>
-  );
-}
-
 export function DownloadStatus({ q, wide }: { q: QueueItem; wide?: boolean }) {
   const tip = `${q.title}${q.download_client ? `\n${q.download_client}` : ""}${q.messages?.length ? "\n" + q.messages.join("\n") : ""}`;
   if (q.status === "importing") {
+    const pct = q.import_progress ?? 0;
     return (
-      <span className="dl-status dl-importing" title={tip}>
-        <CopyAnimation /> Importiere…
+      <span className={`dl-status dl-progress ${wide ? "wide" : ""}`} title={`${tip}
+Wird in die Bibliothek kopiert`}>
+        <Progress value={pct} small tone="success" />
+        <span className="small nowrap dl-import-label">Import {q.import_progress != null ? `${pct.toFixed(0)} %` : "…"}</span>
       </span>
     );
   }

@@ -11,7 +11,7 @@ from ..core.events import live_state, publish
 from ..downloadclients.base import ClientError
 from ..downloadclients.manager import get_client, map_path
 from ..models import Blocklist, DownloadClient, History, Movie, QueueItem, Series, iso, utcnow
-from .importer import process_download
+from .importer import import_progress, process_download
 from .notifications import notify
 
 log = logging.getLogger("queue")
@@ -171,5 +171,10 @@ def queue_to_dict(db: Session, q: QueueItem, names: dict | None = None) -> dict:
         "size_left": q.size_left, "progress": q.progress, "eta_seconds": q.eta_seconds, "output_path": q.output_path,
         "messages": q.messages, "media_type": q.media_type, "movie_id": q.movie_id, "series_id": q.series_id,
         "episode_ids": q.episode_ids, "target": target, "added": iso(q.added), "updated": iso(q.updated),
-        "manual": q.manual,
+        "manual": q.manual, "import_progress": _import_pct(q.id),
     }
+
+
+def _import_pct(qid: int) -> float | None:
+    p = import_progress.get(qid)
+    return round(100.0 * p["done"] / p["total"], 1) if p else None
