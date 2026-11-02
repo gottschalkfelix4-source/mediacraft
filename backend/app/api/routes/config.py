@@ -393,9 +393,13 @@ def list_mappings(db: Session = Depends(get_db)):
     return [m.to_dict() for m in db.query(RemotePathMapping).all()]
 
 
+def _trim(body: dict) -> dict:
+    return {k: v.strip() if isinstance(v, str) else v for k, v in body.items()}
+
+
 @router.post("/remotepathmappings")
 def create_mapping(body: dict, db: Session = Depends(get_db)):
-    m = apply(RemotePathMapping(), body, ("host", "remote_path", "local_path"))
+    m = apply(RemotePathMapping(), _trim(body), ("host", "remote_path", "local_path"))
     db.add(m)
     db.flush()
     return m.to_dict()
@@ -403,7 +407,7 @@ def create_mapping(body: dict, db: Session = Depends(get_db)):
 
 @router.put("/remotepathmappings/{mid}")
 def update_mapping(mid: int, body: dict, db: Session = Depends(get_db)):
-    m = apply(get_or_404(db, RemotePathMapping, mid), body, ("host", "remote_path", "local_path"))
+    m = apply(get_or_404(db, RemotePathMapping, mid), _trim(body), ("host", "remote_path", "local_path"))
     return m.to_dict()
 
 

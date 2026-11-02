@@ -92,11 +92,13 @@ def map_path(db: Session, client: DownloadClient, remote: str | None) -> str | N
     if not remote:
         return remote
     for m in db.query(RemotePathMapping).all():
-        if m.host.lower() not in (client.host.lower(), "*", ""):
+        # stray whitespace from copy & paste must not make a mapping silently miss
+        if m.host.strip().lower() not in (client.host.strip().lower(), "*", ""):
             continue
-        rp = m.remote_path.rstrip("/\\")
+        rp = m.remote_path.strip().rstrip("/\\")
+        local = m.local_path.strip()
         norm = remote.replace("\\", "/")
         if norm == rp.replace("\\", "/") or norm.startswith(rp.replace("\\", "/") + "/"):
             rest = norm[len(rp.replace("\\", "/")):].lstrip("/")
-            return os.path.join(m.local_path, *rest.split("/")) if rest else m.local_path
+            return os.path.join(local, *rest.split("/")) if rest else local
     return remote
