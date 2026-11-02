@@ -85,6 +85,11 @@ def _check_downloads(db: Session) -> dict:
                 stats["failed"] += 1
                 continue
             if ci.status in ("completed", "seeding") and ci.progress >= 99.9 or (ci.status == "completed" and q.protocol == "usenet"):
+                if not ci.output_path:
+                    # finished, but the client hasn't reported the final folder yet (SABnzbd right after
+                    # post-processing) – importing now would fail with "path not found"; just ask again next time
+                    q.status = "downloading"
+                    continue
                 if q.status == "import_blocked" or not cfg.get("completed_handling", True):
                     q.status = "import_blocked" if q.status == "import_blocked" else "completed"
                     continue

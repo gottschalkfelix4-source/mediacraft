@@ -88,3 +88,28 @@ def test_empty_download_counts_as_imported_when_all_episodes_have_files(tmp_root
         ok, messages = importer.process_download(s, q, str(empty), "move")
         assert ok and "Bereits importiert" in messages[0]
         s.rollback()
+
+
+def test_completed_without_output_path_waits_instead_of_blocking(monkeypatch):
+    from app.downloadclients.base import ClientItem
+    from app.models import DownloadClient
+
+    with session_scope() as s:
+        c = DownloadClient(name="SAB-Test", kind="sabnzbd", tv_category="tv", movie_category="movies")
+        s.add(c)
+        s.flush()
+        q = QueueItem(download_client_id=c.id, download_id="nzo_wait", protocol="usenet", title="Warteshow.S01E01-GRP",
+                      media_type="series", status="downloading")
+        s.add(q)
+        s.flush()
+
+        class Fake:
+            def items(self, cats):
+                return [ClientItem(download_id="nzo_wait", title=q.title, category="tv", status="completed",
+                                   size=10, size_left=0, progress=100.0, output_path=None)]
+
+        monkeypatch.setattr(queue, "get_client", lambda cfg: Fake())
+        monkeypatch.setattr(queue, "_import", lambda *a: (_ for _ in ()).throw(AssertionError("must not import")))
+        queue.check_downloads(s)
+        assert q.status == "downloading" and not q.messages
+        s.rollback()
