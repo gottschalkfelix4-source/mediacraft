@@ -21,6 +21,17 @@ def test_version_header_and_auth():
         assert r.json()["appName"] == "Radarr" and r.headers["X-Application-Version"].startswith("5.")
 
 
+def test_routes_are_case_insensitive_like_servarr():
+    # Seerr's connection test requests camelCase paths
+    h = {"X-Api-Key": config.API_KEY}
+    with TestClient(app) as c:
+        for flavor in ("radarr", "sonarr"):
+            for p in ("qualityProfile", "rootFolder", "System/Status", "tag"):
+                r = c.get(f"/{flavor}/api/v3/{p}", headers=h)
+                assert r.status_code == 200, (flavor, p, r.status_code)
+        assert c.get("/sonarr/api/v3/languageProfile", headers=h).status_code == 200
+
+
 def test_prowlarr_push_merges_indexer_for_both_apps():
     h = {"X-Api-Key": config.API_KEY}
     with TestClient(app) as c:

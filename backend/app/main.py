@@ -51,12 +51,16 @@ def create_app() -> FastAPI:
 
     @app.middleware("http")
     async def compat_headers(request: Request, call_next):
-        # Prowlarr & co. read the application version from this header
+        # Sonarr/Radarr (ASP.NET) route case-insensitively and Jellyseerr/Seerr call e.g.
+        # /qualityProfile and /rootFolder; our compat routes are all lowercase, so normalise first.
+        base, path = config.URL_BASE, request.scope["path"]
+        flavor = next((f for f in VERSIONS if path.lower().startswith(f"{base.lower()}/{f}/")), None)
+        if flavor:
+            request.scope["path"] = base + path[len(base):].lower()
         response = await call_next(request)
-        path = request.url.path
-        for flavor, version in VERSIONS.items():
-            if path.startswith(f"{config.URL_BASE}/{flavor}/"):
-                response.headers["X-Application-Version"] = version
+        # Prowlarr & co. read the application version from this header
+        if flavor:
+            response.headers["X-Application-Version"] = VERSIONS[flavor]
         return response
 
     @app.exception_handler(Exception)
