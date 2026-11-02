@@ -44,7 +44,7 @@ Prowlarr, Jellyseerr/Overseerr und Homepage. Recherche und Architektur stehen in
 
 ## Highlights
 
-| | |
+| Funktion | Kurz gesagt |
 |---|---|
 | 🎬📺 **Eine Bibliothek** | Filme, Serien und Anime in einer Datenbank. Profile, Indexer, Downloadclients, Tags und Root-Folder werden gemeinsam genutzt. |
 | 🧩 **Mehrere Metadaten-Provider** | TMDB, TheTVDB v4, TVmaze, OMDb und AniList, mit Reihenfolge pro Medientyp und Fallback. |
