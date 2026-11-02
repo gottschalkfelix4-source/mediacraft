@@ -356,7 +356,12 @@ export interface RemoteLimits {
   grab_max?: number | null;
   api_oldest?: string | null;
   grab_oldest?: string | null;
-  seen?: string;
+  api_next?: string | null;
+  grab_next?: string | null;
+  seen?: string; // last time the indexer reported counters
+  checked?: string; // last time we asked
+  supported?: boolean; // false: the indexer answered without apilimits
+  raw?: Record<string, string>;
 }
 
 export interface IndexerBase {
@@ -575,6 +580,7 @@ export interface DownloadSettings {
 
 export interface IndexerSettings {
   rss_interval_minutes: number;
+  limits_poll_minutes: number;
   minimum_age_minutes: number;
   retention_days: number;
   maximum_size_mb: number;

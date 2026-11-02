@@ -123,6 +123,7 @@ export const api = {
     post<{ ok: boolean; capabilities: Record<string, unknown> }>("/indexers/test", b),
   indexerCaps: (id: number) => post<Record<string, unknown>>(`/indexers/${id}/caps`),
   unpauseIndexer: (id: number) => post<T.Indexer>(`/indexers/${id}/unpause`),
+  refreshIndexerLimits: (id: number) => post<T.Indexer>(`/indexers/${id}/limits`),
   indexerUsage: (id: number, hours = 48) => get<T.IndexerUsageDetail>(`/indexers/${id}/usage`, { hours }),
   resetIndexerUsage: (id: number) => del<{ deleted: number }>(`/indexers/${id}/usage`),
   indexersUsage: () => get<T.IndexerUsageSummary[]>("/indexers-usage"),

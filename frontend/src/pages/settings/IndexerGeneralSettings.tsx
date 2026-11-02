@@ -14,6 +14,9 @@ export function IndexerGeneralSettings() {
           <Field label="RSS-Sync-Intervall (min)" help="0 = deaktiviert. Jeder Sync kostet pro Indexer eine Query.">
             <NumberInput value={d.rss_interval_minutes} onValue={(v) => set("rss_interval_minutes", v)} min={0} />
           </Field>
+          <Field label="Live-Limits abfragen (min)" help="Holt die Zähler des Indexers (z. B. TreasureMaps: Grabs der letzten 24 h, auch von anderen Tools). Kostet eine Query, nie einen Grab; entfällt, wenn Suche/RSS die Werte schon frisch geliefert haben. 0 = nur aus normalen Anfragen.">
+            <NumberInput value={d.limits_poll_minutes ?? 15} onValue={(v) => set("limits_poll_minutes", v)} min={0} />
+          </Field>
           <Field label="Mindestalter (min)" help="Usenet: Releases erst nach dieser Zeit laden (Propagation)">
             <NumberInput value={d.minimum_age_minutes} onValue={(v) => set("minimum_age_minutes", v)} min={0} />
           </Field>

@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 
 from ..models import Indexer, IndexerEvent, utcnow
 
-QUERY_KINDS = ("query", "rss", "caps")
+QUERY_KINDS = ("query", "rss", "caps", "limits")
 
 _interval_lock = threading.Lock()
 _last_request: dict[int, float] = {}
@@ -80,19 +80,32 @@ def count(db: Session, idx: Indexer, kind: str, now: Optional[datetime] = None) 
     return db.query(func.count(IndexerEvent.id)).filter(*_filters(idx, kind, start)).scalar() or 0
 
 
-def _remote_used(idx: Indexer, kind: str, now: datetime) -> Optional[int]:
+def _remote_seen(idx: Indexer) -> Optional[datetime]:
     rl = idx.remote_limits or {}
     if not idx.sync_remote_limits or not rl.get("seen"):
         return None
-    # remote counters older than the window are meaningless
     try:
-        seen = datetime.fromisoformat(rl["seen"])
+        return datetime.fromisoformat(rl["seen"])
     except ValueError:
         return None
-    if now - seen > timedelta(hours=idx.limit_window_hours or 24):
+
+
+def _remote_used(db: Session, idx: Indexer, kind: str, now: datetime) -> Optional[int]:
+    """Live counter: what the indexer reported plus our own requests since that report.
+
+    The indexer counts usage from every tool on the account (other *arr apps, the website, ...),
+    so this is the authoritative number. Requests we made after the report are added on top
+    because the indexer could not include them yet.
+    """
+    seen = _remote_seen(idx)
+    # remote counters older than the window are meaningless
+    if seen is None or now - seen > timedelta(hours=idx.limit_window_hours or 24):
         return None
-    v = rl.get("api_current" if kind == "query" else "grab_current")
-    return int(v) if v is not None else None
+    v = (idx.remote_limits or {}).get("api_current" if kind == "query" else "grab_current")
+    if v is None:
+        return None
+    since = db.query(func.count(IndexerEvent.id)).filter(*_filters(idx, kind, seen)).scalar() or 0
+    return int(v) + since
 
 
 def effective_limit(idx: Indexer, kind: str) -> int:
@@ -113,28 +126,40 @@ def next_slot(db: Session, idx: Indexer, kind: str, limit: int, now: Optional[da
     hours = idx.limit_window_hours or 24
     used = count(db, idx, kind, now)
     over = used - limit + 1  # how many events have to fall out of the window
-    if over <= 0:
+    candidate = None
+    if over > 0:
+        row = db.query(IndexerEvent.timestamp).filter(*_filters(idx, kind, start)).order_by(IndexerEvent.timestamp.asc()).offset(over - 1).limit(1).first()
+        candidate = row[0] + timedelta(hours=hours) if row else None
+    elif (_remote_used(db, idx, kind, now) or 0) < limit:
         return None
-    row = db.query(IndexerEvent.timestamp).filter(*_filters(idx, kind, start)).order_by(IndexerEvent.timestamp.asc()).offset(over - 1).limit(1).first()
-    candidate = row[0] + timedelta(hours=hours) if row else None
     # remote oldest time (if indexer told us) can push the slot further out
     rl = idx.remote_limits or {}
-    oldest = rl.get("api_oldest" if kind == "query" else "grab_oldest")
-    if oldest:
-        try:
-            remote_slot = datetime.fromisoformat(oldest) + timedelta(hours=hours)
-            if remote_slot > now and (candidate is None or remote_slot > candidate):
-                candidate = remote_slot
-        except ValueError:
-            pass
+    remote_slot = None
+    try:
+        if rl.get(f"{_rk(kind)}_next"):  # indexer says directly when the next unit frees up
+            remote_slot = datetime.fromisoformat(rl[f"{_rk(kind)}_next"])
+        elif rl.get(f"{_rk(kind)}_oldest"):
+            remote_slot = datetime.fromisoformat(rl[f"{_rk(kind)}_oldest"]) + timedelta(hours=hours)
+    except ValueError:
+        remote_slot = None
+    if remote_slot and remote_slot > now and (candidate is None or remote_slot > candidate):
+        candidate = remote_slot
+    if candidate is None and _remote_seen(idx):
+        # exhausted according to the indexer, but it gave no times: every unit it counted is out of the
+        # window one window-length after its report at the latest (the next limits poll refines this)
+        candidate = _remote_seen(idx) + timedelta(hours=hours)
     return candidate
+
+
+def _rk(kind: str) -> str:
+    return "api" if kind == "query" else "grab"
 
 
 def state(db: Session, idx: Indexer, kind: str, now: Optional[datetime] = None) -> LimitState:
     now = now or utcnow()
     limit = effective_limit(idx, kind)
     used_local = count(db, idx, kind, now)
-    remote = _remote_used(idx, kind, now)
+    remote = _remote_used(db, idx, kind, now)
     used = max(used_local, remote or 0)
     reserve = idx.query_reserve if kind == "query" else idx.grab_reserve
     start, end = window_bounds(idx, now)
@@ -193,7 +218,12 @@ def record(db: Session, idx: Indexer, kind: str, *, success: bool = True, manual
 
 
 def apply_remote_limits(idx: Indexer, attrs: dict) -> None:
-    """Store counters from ``<newznab:apilimits .../>`` (attribute names are case-insensitive)."""
+    """Store counters from ``<newznab:apilimits .../>``.
+
+    Attribute names are case-insensitive (``apiCurrent`` / ``apicurrent``). Besides the spec
+    attributes (``apiNextAvailable``/``grabNextAvailable``) the widespread ``apiOldestTime``/
+    ``grabOldestTime`` variant is understood. A missing ``*Current`` next to a ``*Max`` means 0.
+    """
     a = {k.lower(): v for k, v in attrs.items()}
 
     def _int(k):
@@ -218,12 +248,24 @@ def apply_remote_limits(idx: Indexer, attrs: dict) -> None:
             d = d.astimezone(timezone.utc).replace(tzinfo=None)
         return d.isoformat()
 
-    idx.remote_limits = {
-        "api_current": _int("apicurrent"), "api_max": _int("apimax"),
-        "grab_current": _int("grabcurrent"), "grab_max": _int("grabmax"),
-        "api_oldest": _dt("apioldesttime"), "grab_oldest": _dt("graboldesttime"),
-        "seen": utcnow().isoformat(),
-    }
+    out = {"seen": utcnow().isoformat(), "checked": utcnow().isoformat(), "supported": True,
+           "raw": {k: v for k, v in attrs.items()}}
+    for p in ("api", "grab"):
+        cur, mx = _int(f"{p}current"), _int(f"{p}max")
+        out[f"{p}_current"] = 0 if cur is None and mx is not None else cur
+        out[f"{p}_max"] = mx
+        out[f"{p}_oldest"] = _dt(f"{p}oldesttime")
+        out[f"{p}_next"] = _dt(f"{p}nextavailable")
+    idx.remote_limits = out
+
+
+def mark_remote_missing(idx: Indexer) -> None:
+    """A limits probe got an answer without ``apilimits`` – remember so polling stops wasting queries."""
+    rl = dict(idx.remote_limits or {})
+    rl["checked"] = utcnow().isoformat()
+    if not rl.get("seen"):
+        rl["supported"] = False
+    idx.remote_limits = rl
 
 
 def pause(db: Session, idx: Indexer, reason: str, until: Optional[datetime] = None, backoff: list[int] | None = None) -> None:
@@ -270,6 +312,11 @@ def forecast(db: Session, idx: Indexer, kind: str, steps: int = 24) -> list[dict
     hours = idx.limit_window_hours or 24
     start, end = window_bounds(idx, now)
     times = [r[0] for r in db.query(IndexerEvent.timestamp).filter(*_filters(idx, kind, start)).all()]
+    # usage the indexer knows about but we don't (other tools): exact times are unknown, so assume the
+    # latest possible – right before the report – which never promises a slot too early
+    extra = (_remote_used(db, idx, kind, now) or 0) - len(times)
+    if extra > 0:
+        times += [_remote_seen(idx)] * extra
     out = []
     for h in range(steps + 1):
         t = now + timedelta(hours=h)

@@ -1,17 +1,18 @@
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, RotateCcw, CheckCircle2, XCircle, Hand, Bot, Pencil, PlayCircle, PauseCircle } from "lucide-react";
+import { ArrowLeft, RotateCcw, CheckCircle2, XCircle, Hand, Bot, Pencil, PlayCircle, PauseCircle, Globe, RefreshCw } from "lucide-react";
 import { api } from "../../api";
-import { Badge, Card, Empty, ErrorBox, Loading, PageHeader, Select } from "../../components/ui";
+import { Badge, Card, Empty, ErrorBox, KV, Loading, PageHeader, Select, Spinner } from "../../components/ui";
 import { useConfirm } from "../../components/Modal";
 import { UsageMeter, windowLabel } from "../../components/Usage";
 import { useApiMutation, useNow } from "../../hooks";
 import { fmtDateTime, parseDate, relTime } from "../../format";
 import { ForecastChart, UsageHistogram } from "./Charts";
 import { IndexerDialog } from "./IndexerDialog";
+import type { Indexer } from "../../types";
 
-const KIND_LABELS: Record<string, string> = { query: "Suche", rss: "RSS", grab: "Grab", caps: "Caps" };
+const KIND_LABELS: Record<string, string> = { query: "Suche", rss: "RSS", grab: "Grab", caps: "Caps", limits: "Limits" };
 
 export function IndexerUsagePage() {
   const id = Number(useParams().id);
@@ -93,6 +94,8 @@ export function IndexerUsagePage() {
           </Card>
         </div>
       )}
+
+      {i.sync_remote_limits && <LiveLimits i={i} now={now} />}
 
       <Card
         title={`Anfragen pro Stunde`}
@@ -185,5 +188,53 @@ export function IndexerUsagePage() {
       </Card>
       {editing && <IndexerDialog indexer={i} onClose={() => setEditing(false)} />}
     </div>
+  );
+}
+
+/** What the indexer itself reports (newznab:apilimits) – counts usage from every tool on the account. */
+function LiveLimits({ i, now }: { i: Indexer; now: Date }) {
+  const refresh = useApiMutation(() => api.refreshIndexerLimits(i.id), {
+    invalidate: [["indexer-usage", i.id], ["indexers"], ["indexers-usage"]],
+    success: (r) => (r.remote_limits?.seen && r.remote_limits.seen === r.remote_limits.checked ? "Live-Werte aktualisiert" : "Indexer liefert keine Live-Werte"),
+    errorTitle: "Abfrage fehlgeschlagen",
+  });
+  const rl = i.remote_limits ?? {};
+  // 0 or missing max = no limit
+  const pair = (cur?: number | null, max?: number | null) => (cur == null && max == null ? "–" : `${cur ?? 0} / ${max || "∞"}`);
+  const when = (v?: string | null) => (v ? `${fmtDateTime(v + "Z")} (${relTime(v + "Z", now)})` : "–");
+  // rolling window: the oldest counted grab frees its slot one window length later
+  const nextGrab = rl.grab_next ?? (rl.grab_oldest ? new Date(Date.parse(rl.grab_oldest + "Z") + (i.limit_window_hours || 24) * 3600_000).toISOString().slice(0, 19) : null);
+  return (
+    <Card
+      title={
+        <>
+          <Globe size={15} /> Live vom Indexer
+        </>
+      }
+      actions={
+        <button className="btn btn-sm" onClick={() => refresh.mutate(undefined)} disabled={refresh.isPending} title="Fragt die Zähler jetzt ab – kostet eine Query, keinen Grab">
+          {refresh.isPending ? <Spinner size={14} /> : <RefreshCw size={14} />} Live-Werte abrufen
+        </button>
+      }
+      className="mb"
+    >
+      {rl.supported === false && !rl.seen ? (
+        <p className="muted">
+          Der Indexer hat bei der letzten Abfrage ({when(rl.checked)}) keine Zähler (<code>newznab:apilimits</code>) mitgeschickt. MediaCraft zählt deshalb nur die eigenen Anfragen.
+        </p>
+      ) : !rl.seen ? (
+        <p className="muted">Noch keine Live-Werte – „Live-Werte abrufen“ klicken oder auf die nächste Suche warten.</p>
+      ) : (
+        <KV
+          items={[
+            ["Grabs (24 h)", pair(rl.grab_current, rl.grab_max)],
+            ["API-Aufrufe (24 h)", pair(rl.api_current, rl.api_max)],
+            ["Nächster Grab frei", when(nextGrab)],
+            ["Stand", when(rl.seen)],
+            ["Rohdaten", <code key="raw" className="small">{Object.entries(rl.raw ?? {}).map(([k, v]) => `${k}="${v}"`).join(" ") || "–"}</code>],
+          ]}
+        />
+      )}
+    </Card>
   );
 }

@@ -83,6 +83,18 @@ def _extra_params(idx: Indexer) -> dict:
     return out
 
 
+def probe_limits(db: Session, idx: Indexer, manual: bool = False) -> dict:
+    """Fetch the live ``apilimits`` counters with the smallest possible query (1 result, no grab).
+
+    Costs one API call, never a grab. Indexers that don't report limits are remembered as such.
+    """
+    before = (idx.remote_limits or {}).get("seen")
+    search(db, idx, {"t": "search", "limit": 1}, kind="limits", manual=manual)
+    if (idx.remote_limits or {}).get("seen") == before:
+        usage.mark_remote_missing(idx)
+    return idx.remote_limits or {}
+
+
 def _check_error(root, idx: Indexer) -> None:
     if _local(root.tag) == "error":
         code = _int(root.get("code")) or 0
@@ -156,6 +168,8 @@ def caps(db: Session, idx: Indexer, manual: bool = True) -> dict:
         if tag in ("search", "tv-search", "movie-search", "audio-search", "book-search"):
             out["searching"][tag] = {"available": el.get("available") == "yes",
                                      "params": [p.strip() for p in (el.get("supportedParams") or "q").split(",")]}
+        elif tag == "apilimits":
+            usage.apply_remote_limits(idx, dict(el.attrib))
         elif tag == "limits":
             out["limits"] = {"max": _int(el.get("max")), "default": _int(el.get("default"))}
         elif tag == "category":

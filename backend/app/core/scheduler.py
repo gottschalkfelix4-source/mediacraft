@@ -98,6 +98,7 @@ def _cfg(section: str, key: str, factor: float = 1.0, default: float = 0.0) -> C
 TASKS = [
     Task("check_downloads", "Downloads prüfen", _cfg("downloads", "check_interval_seconds", 1), "check_downloads"),
     Task("rss_sync", "RSS-Sync", _cfg("indexers", "rss_interval_minutes", 60), "rss_sync"),
+    Task("poll_limits", "Indexer-Limits abfragen", _cfg("indexers", "limits_poll_minutes", 60, 15), "poll_limits"),
     Task("refresh_metadata", "Metadaten aktualisieren", _cfg("metadata", "refresh_interval_hours", 3600), "refresh_all"),
     Task("wanted_search", "Fehlende suchen", _cfg("wanted", "auto_search_interval_hours", 3600), "wanted_search"),
     Task("health_check", "Health-Check", lambda c: 300, "health_check"),

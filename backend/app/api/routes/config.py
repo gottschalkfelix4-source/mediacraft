@@ -264,6 +264,17 @@ def refresh_caps(iid: int, db: Session = Depends(get_db)):
         raise HTTPException(400, str(e))
 
 
+@router.post("/indexers/{iid}/limits")
+def refresh_limits(iid: int, db: Session = Depends(get_db)):
+    """Ask the indexer for its live counters right now (one API call, no grab)."""
+    i = get_or_404(db, Indexer, iid)
+    try:
+        newznab.probe_limits(db, i, manual=True)
+    except Exception as e:
+        raise HTTPException(400, str(e))
+    return indexer_to_dict(db, i)
+
+
 @router.post("/indexers/{iid}/unpause")
 def unpause(iid: int, db: Session = Depends(get_db)):
     i = get_or_404(db, Indexer, iid)

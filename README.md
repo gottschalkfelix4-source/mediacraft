@@ -217,7 +217,8 @@ Das Template ist auf die Unraid-Standards vorbelegt:
 - Optional `grab_reserve` setzen, z. B. 20. Automatische Suchen hören dann bei 380 auf,
   die restlichen 20 bleiben für interaktive Grabs.
 - Optional `query_limit` und `min_request_interval` setzen, z. B. 2 s.
-- **Indexer-Zähler übernehmen** aktiv lassen. Meldet der Indexer `apilimits`, gilt der höhere Wert (lokal oder remote).
+- **Indexer-Zähler übernehmen** aktiv lassen. MediaCraft fragt die Live-Werte des Indexers (`newznab:apilimits`) alle 15 Minuten ab. Das kostet einen API-Aufruf, nie einen Grab, und wird übersprungen, wenn eine normale Suche die Werte schon frisch geliefert hat. Als Verbrauch zählt der Wert des Indexers plus die eigenen Grabs seit dieser Meldung. So werden auch Grabs von anderen Tools oder von der Website berücksichtigt.
+- Unter *Indexer → Nutzung* zeigt die Karte **„Live vom Indexer“** die gemeldeten Werte samt Rohdaten. Mit **„Live-Werte abrufen“** lassen sie sich jederzeit neu holen.
 
 *Rollierend* bedeutet: Gezählt werden alle Grabs der letzten 24 Stunden. Ein Slot wird genau 24 h nach dem
 jeweiligen Grab wieder frei. Die Nutzungsseite zeigt deshalb eine Prognose, wie viele Grabs in den nächsten

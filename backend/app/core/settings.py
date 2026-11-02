@@ -50,6 +50,7 @@ DEFAULTS: dict[str, dict] = {
     },
     "indexers": {
         "rss_interval_minutes": 15,
+        "limits_poll_minutes": 15,  # refresh live apilimits counters (0 = only from normal queries)
         "minimum_age_minutes": 0,
         "retention_days": 0,
         "maximum_size_mb": 0,

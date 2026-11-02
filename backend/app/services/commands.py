@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 
+from ..core import settings as settings_mod
 from ..core.scheduler import commands
+from ..indexers import newznab, usage
 from ..metadata.manager import MetadataManager
-from ..models import Episode, Movie, Series, utcnow
+from ..models import Episode, Indexer, Movie, Series, utcnow
 from . import library, maintenance, queue, rss, search
 from .notifications import notify
 
@@ -86,6 +89,30 @@ def _refresh_all(db: Session):
     return {"refreshed": n}
 
 
+def _poll_limits(db: Session):
+    """Keep the live ``apilimits`` counters fresh for indexers that report them."""
+    minutes = settings_mod.get(db, "indexers").get("limits_poll_minutes") or 0
+    now, polled = utcnow(), []
+    for idx in db.query(Indexer).filter(Indexer.enabled.is_(True), Indexer.sync_remote_limits.is_(True)).all():
+        rl = idx.remote_limits or {}
+        if rl.get("supported") is False or (idx.disabled_until and idx.disabled_until > now):
+            continue
+        last = rl.get("checked") or rl.get("seen")
+        # normal searches / RSS deliver the counters too – only ask when they are getting stale
+        if last and now - datetime.fromisoformat(last) < timedelta(minutes=minutes * 0.9):
+            continue
+        if not usage.can(db, idx, "query"):
+            continue
+        try:
+            newznab.probe_limits(db, idx)
+            db.commit()
+            polled.append(idx.name)
+        except Exception as e:
+            db.rollback()
+            log.warning("Live-Limits von %s nicht abrufbar: %s", idx.name, e)
+    return {"polled": polled}
+
+
 def _health(db: Session):
     issues = maintenance.health(db)
     old = {i["message"] for i in health_cache["issues"]}
@@ -121,6 +148,7 @@ def register_all() -> None:
     commands.register("rename_movie", _rename_movie)
     commands.register("rename_series", _rename_series)
     commands.register("rss_sync", rss.rss_sync)
+    commands.register("poll_limits", _poll_limits)
     commands.register("wanted_search", lambda db: rss.search_wanted(db))
     commands.register("cutoff_search", lambda db: rss.search_wanted(db, include_cutoff=True))
     commands.register("check_downloads", queue.check_downloads)
