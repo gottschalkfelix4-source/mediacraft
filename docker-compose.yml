@@ -1,0 +1,33 @@
+# MediaCraft – eigenständig oder als Ersatz für Sonarr + Radarr in einem bestehenden Stack.
+#
+#   docker compose up -d          (lokal bauen: "build: ." aktivieren und --build anhängen)
+#
+# Wichtig für Hardlinks: Downloads und Bibliothek müssen im selben Volume liegen
+# (z. B. /data/torrents, /data/usenet, /data/media/movies, /data/media/tv) und
+# MediaCraft wie der Downloadclient denselben Pfad /data sehen.
+services:
+  mediacraft:
+    image: ghcr.io/gottschalkfelix4-source/mediacraft:latest
+    # build: .                             # stattdessen lokal aus dem Quellcode bauen
+    container_name: mediacraft
+    restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - UMASK=002
+      - TZ=Europe/Berlin
+      # - MEDIACRAFT_API_KEY=...            # festen API-Key vorgeben (sonst generiert)
+    volumes:
+      - ./config:/config
+      - /pfad/zu/data:/data
+    ports:
+      - "7979:7979"
+    networks:
+      - mediastack
+
+networks:
+  mediastack:
+    # bestehendes Netzwerk des Mediastacks verwenden:
+    #   docker network ls   -> Namen eintragen und "external: true" setzen
+    name: mediastack
+    external: false

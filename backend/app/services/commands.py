@@ -1,0 +1,129 @@
+"""Registration of all command handlers for the command queue / scheduler."""
+from __future__ import annotations
+
+import logging
+
+from sqlalchemy.orm import Session
+
+from ..core.scheduler import commands
+from ..metadata.manager import MetadataManager
+from ..models import Episode, Movie, Series, utcnow
+from . import library, maintenance, queue, rss, search
+from .notifications import notify
+
+log = logging.getLogger("commands")
+
+health_cache: dict = {"issues": [], "checked": None}
+
+
+def _movie_search(db: Session, movie_id: int):
+    m = db.get(Movie, movie_id)
+    return search.auto_search_movie(db, m) if m else None
+
+
+def _movies_search(db: Session, movie_ids: list[int]):
+    return [_movie_search(db, i) for i in movie_ids]
+
+
+def _episode_search(db: Session, series_id: int, episode_ids: list[int]):
+    s = db.get(Series, series_id)
+    if not s:
+        return None
+    eps = [e for e in s.episodes if e.id in set(episode_ids)]
+    return search.auto_search_episodes(db, s, eps)
+
+
+def _season_search(db: Session, series_id: int, season: int):
+    s = db.get(Series, series_id)
+    eps = search.wanted_episodes(s, season=season, include_cutoff=True) if s else []
+    return search.auto_search_episodes(db, s, eps) if eps else []
+
+
+def _series_search(db: Session, series_id: int):
+    s = db.get(Series, series_id)
+    eps = search.wanted_episodes(s, include_cutoff=True) if s else []
+    return search.auto_search_episodes(db, s, eps) if eps else []
+
+
+def _refresh_movie(db: Session, movie_id: int):
+    m = db.get(Movie, movie_id)
+    if m:
+        library.refresh_movie(db, m)
+        maintenance.scan_movie(db, m)
+
+
+def _refresh_series(db: Session, series_id: int):
+    s = db.get(Series, series_id)
+    if s:
+        stats = library.refresh_series(db, s)
+        maintenance.scan_series(db, s)
+        return stats
+
+
+def _refresh_all(db: Session):
+    mgr = MetadataManager.from_db(db)
+    n = 0
+    for s in db.query(Series).all():
+        if s.status == "ended" and s.last_refresh and (utcnow() - s.last_refresh).days < 7:
+            continue
+        try:
+            library.refresh_series(db, s, mgr)
+            db.commit()
+            n += 1
+        except Exception as e:
+            log.warning("Refresh %s fehlgeschlagen: %s", s.title, e)
+            db.rollback()
+    for m in db.query(Movie).all():
+        if m.status == "released" and m.has_file and m.last_refresh and (utcnow() - m.last_refresh).days < 7:
+            continue
+        try:
+            library.refresh_movie(db, m, mgr)
+            db.commit()
+            n += 1
+        except Exception as e:
+            log.warning("Refresh %s fehlgeschlagen: %s", m.title, e)
+            db.rollback()
+    return {"refreshed": n}
+
+
+def _health(db: Session):
+    issues = maintenance.health(db)
+    old = {i["message"] for i in health_cache["issues"]}
+    for i in issues:
+        if i["message"] not in old and i["level"] == "error":
+            notify("health", i["message"])
+    health_cache["issues"] = issues
+    health_cache["checked"] = utcnow().isoformat() + "Z"
+    return {"issues": len(issues)}
+
+
+def _rename_series(db: Session, series_id: int):
+    s = db.get(Series, series_id)
+    from .importer import rename_apply
+    return rename_apply(db, series=s) if s else 0
+
+
+def _rename_movie(db: Session, movie_id: int):
+    m = db.get(Movie, movie_id)
+    from .importer import rename_apply
+    return rename_apply(db, movie=m) if m else 0
+
+
+def register_all() -> None:
+    commands.register("movie_search", _movie_search)
+    commands.register("movies_search", _movies_search)
+    commands.register("episode_search", _episode_search)
+    commands.register("season_search", _season_search)
+    commands.register("series_search", _series_search)
+    commands.register("refresh_movie", _refresh_movie)
+    commands.register("refresh_series", _refresh_series)
+    commands.register("refresh_all", _refresh_all)
+    commands.register("rename_movie", _rename_movie)
+    commands.register("rename_series", _rename_series)
+    commands.register("rss_sync", rss.rss_sync)
+    commands.register("wanted_search", lambda db: rss.search_wanted(db))
+    commands.register("cutoff_search", lambda db: rss.search_wanted(db, include_cutoff=True))
+    commands.register("check_downloads", queue.check_downloads)
+    commands.register("health_check", _health)
+    commands.register("disk_scan_all", maintenance.scan_all)
+    commands.register("housekeeping", maintenance.housekeeping)

@@ -1,0 +1,72 @@
+# Beispiel: kompletter Mediastack mit MediaCraft anstelle von Sonarr + Radarr.
+# Alle Container teilen sich /data (TRaSH-Guides-Struktur) -> Hardlinks, kein doppelter Speicher.
+#
+# /data
+# ├── torrents/{movies,tv}
+# ├── usenet/complete/{movies,tv}
+# └── media/{movies,tv,anime}
+#
+# Verbindungen nach dem Start:
+#   MediaCraft  -> Downloadclients: qbittorrent:8080 (Kategorien movies/tv), sabnzbd:8080
+#   Prowlarr    -> Settings > Apps: "Sonarr"  Server http://mediacraft:7979/sonarr  (API-Key von MediaCraft)
+#                                   "Radarr"  Server http://mediacraft:7979/radarr  (gleicher API-Key)
+#   Jellyseerr  -> Radarr-Server  Host mediacraft, Port 7979, URL-Base /radarr
+#                  Sonarr-Server  Host mediacraft, Port 7979, URL-Base /sonarr
+#   Jellyfin    -> in MediaCraft unter Benachrichtigungen "Jellyfin" (Library-Refresh nach Import)
+services:
+  mediacraft:
+    image: ghcr.io/gottschalkfelix4-source/mediacraft:latest
+    # build: .                             # stattdessen lokal aus dem Quellcode bauen
+    container_name: mediacraft
+    restart: unless-stopped
+    environment: [PUID=1000, PGID=1000, UMASK=002, TZ=Europe/Berlin]
+    volumes:
+      - ./mediacraft:/config
+      - /srv/data:/data
+    ports: ["7979:7979"]
+
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:5.0.4
+    container_name: qbittorrent
+    restart: unless-stopped
+    environment: [PUID=1000, PGID=1000, UMASK=002, TZ=Europe/Berlin, WEBUI_PORT=8080]
+    volumes:
+      - ./qbittorrent:/config
+      - /srv/data/torrents:/data/torrents
+    ports: ["8080:8080", "6881:6881", "6881:6881/udp"]
+
+  sabnzbd:
+    image: lscr.io/linuxserver/sabnzbd:4.4.1
+    container_name: sabnzbd
+    restart: unless-stopped
+    environment: [PUID=1000, PGID=1000, UMASK=002, TZ=Europe/Berlin]
+    volumes:
+      - ./sabnzbd:/config
+      - /srv/data/usenet:/data/usenet
+    ports: ["8081:8080"]
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:1.30.2
+    container_name: prowlarr
+    restart: unless-stopped
+    environment: [PUID=1000, PGID=1000, TZ=Europe/Berlin]
+    volumes: ["./prowlarr:/config"]
+    ports: ["9696:9696"]
+
+  jellyseerr:
+    image: fallenbagel/jellyseerr:2.3.0
+    container_name: jellyseerr
+    restart: unless-stopped
+    environment: [TZ=Europe/Berlin]
+    volumes: ["./jellyseerr:/app/config"]
+    ports: ["5055:5055"]
+
+  jellyfin:
+    image: lscr.io/linuxserver/jellyfin:10.10.3
+    container_name: jellyfin
+    restart: unless-stopped
+    environment: [PUID=1000, PGID=1000, TZ=Europe/Berlin]
+    volumes:
+      - ./jellyfin:/config
+      - /srv/data/media:/data/media
+    ports: ["8096:8096"]

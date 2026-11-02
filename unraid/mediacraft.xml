@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>MediaCraft</Name>
+  <Repository>ghcr.io/gottschalkfelix4-source/mediacraft:latest</Repository>
+  <Registry>https://github.com/gottschalkfelix4-source/mediacraft/pkgs/container/mediacraft</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>bash</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/gottschalkfelix4-source/mediacraft/issues</Support>
+  <Project>https://github.com/gottschalkfelix4-source/mediacraft</Project>
+  <Overview>Filme und Serien in einer Anwendung: MediaCraft vereint die Funktionen von Sonarr und Radarr in einem Container. Mehrere Metadaten-Provider (TMDB, TheTVDB, TVmaze, OMDb, AniList), Indexer-Usage-Tracking mit rollierenden Query- und Grab-Limits (z. B. 400 Grabs / 24 h), Custom Formats inkl. German DL, qBittorrent/Transmission/Deluge/SABnzbd/NZBGet und eine Sonarr-/Radarr-kompatible API für Prowlarr, Jellyseerr/Overseerr und Homepage.&#xD;
+&#xD;
+Wichtig für Hardlinks: Downloads und Bibliothek müssen unter demselben Pfad /data liegen (z. B. /mnt/user/data mit torrents/, usenet/ und media/), und der Downloadclient muss denselben Pfad sehen.</Overview>
+  <Category>MediaApp:Video Downloaders:</Category>
+  <WebUI>http://[IP]:[PORT:7979]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/gottschalkfelix4-source/mediacraft/main/unraid/mediacraft.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/gottschalkfelix4-source/mediacraft/main/unraid/mediacraft.png</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires/>
+  <Config Name="WebUI-Port" Target="7979" Default="7979" Mode="tcp" Description="Port der Weboberfläche und der API" Type="Port" Display="always" Required="true" Mask="false">7979</Config>
+  <Config Name="Config" Target="/config" Default="/mnt/user/appdata/mediacraft" Mode="rw" Description="Datenbank, Logs und config.json (API-Key)" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/mediacraft</Config>
+  <Config Name="Data" Target="/data" Default="/mnt/user/data" Mode="rw,slave" Description="Gemeinsamer Ordner für Downloads und Bibliothek (z. B. /data/torrents, /data/usenet, /data/media/movies, /data/media/tv) – nötig für Hardlinks" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/data</Config>
+  <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="Benutzer-ID (Unraid-Standard: 99 = nobody)" Type="Variable" Display="advanced" Required="true" Mask="false">99</Config>
+  <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Gruppen-ID (Unraid-Standard: 100 = users)" Type="Variable" Display="advanced" Required="true" Mask="false">100</Config>
+  <Config Name="UMASK" Target="UMASK" Default="002" Mode="" Description="Rechte neuer Dateien" Type="Variable" Display="advanced" Required="false" Mask="false">002</Config>
+  <Config Name="TZ" Target="TZ" Default="Europe/Berlin" Mode="" Description="Zeitzone" Type="Variable" Display="advanced" Required="false" Mask="false">Europe/Berlin</Config>
+  <Config Name="API-Key" Target="MEDIACRAFT_API_KEY" Default="" Mode="" Description="Optional: festen API-Key vorgeben (leer = wird beim ersten Start generiert)" Type="Variable" Display="advanced" Required="false" Mask="true"/>
+</Container>
