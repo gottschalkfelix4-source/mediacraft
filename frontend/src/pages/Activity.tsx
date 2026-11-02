@@ -71,7 +71,9 @@ function QueueTab({ items, loading, error }: { items?: QueueItem[]; loading: boo
   const retry = async (q: QueueItem) => {
     try {
       const r = await api.retryQueueImport(q.id);
-      if (r.ok) toast.success("Import erfolgreich", q.title);
+      if (r.queued) toast.success("Import eingeplant", `${q.title}
+Startet, sobald kein anderer Import läuft.`);
+      else if (r.ok) toast.success("Import erfolgreich", q.title);
       else toast.warning("Import nicht möglich", r.messages?.join("\n"));
       qc.invalidateQueries({ queryKey: ["queue"] });
     } catch (e) {

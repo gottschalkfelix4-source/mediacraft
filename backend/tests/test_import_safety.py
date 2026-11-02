@@ -28,6 +28,12 @@ def test_running_import_is_not_started_twice(tmp_root):
             assert queue.import_running(q.id)
             assert queue._import(s, q, None) is False  # second caller backs off without touching the item
             assert q.status == "importing" and not q.messages
+            # a different download has to wait too: only one import at a time overall
+            other = QueueItem(download_client_id=1, download_id="x9", protocol="usenet", title="Andere.Show.S01-GRP",
+                              media_type="series", series_id=se.id, status="downloading")
+            s.add(other)
+            s.flush()
+            assert queue._import(s, other, None) is False and other.status == "downloading"
         finally:
             queue._importing.discard(q.id)
         s.rollback()

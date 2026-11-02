@@ -23,7 +23,7 @@ TRACKED = ("grabbed", "queued", "downloading", "paused", "warning", "completed",
 
 _check_lock = threading.Lock()  # one check_downloads at a time (scheduler + "Downloads prüfen" button)
 _import_guard = threading.Lock()
-_importing: set[int] = set()  # queue ids being imported right now
+_importing: set[int] = set()  # queue id being imported right now – never more than one (see _import)
 
 
 def import_running(qid: int) -> bool:
@@ -111,7 +111,9 @@ def _safe_remove(c: DownloadClient, q: QueueItem, delete_data: bool) -> None:
 
 def _import(db: Session, q: QueueItem, c: DownloadClient) -> bool:
     with _import_guard:
-        if q.id in _importing:
+        # only ever one import at a time: parallel copies to the same disk/share only slow each other down
+        # and compete for the database; the next check_downloads picks up whatever had to wait
+        if _importing:
             return False
         _importing.add(q.id)
     try:
@@ -149,9 +151,16 @@ def _do_import(db: Session, q: QueueItem, c: DownloadClient) -> bool:
     return ok
 
 
-def retry_import(db: Session, q: QueueItem) -> bool:
-    c = db.get(DownloadClient, q.download_client_id)
-    return _import(db, q, c) if c else False
+def schedule_import(db: Session, q: QueueItem) -> None:
+    """'Import wiederholen': hand the item to the regular import queue (one import at a time)."""
+    q.status = "completed"
+    q.messages = ["Import eingeplant – startet, sobald kein anderer Import läuft"]
+    db.commit()
+    live_state["active_downloads"] = True
+    publish("queue.updated", {"id": q.id})
+    from ..core.scheduler import commands
+
+    commands.enqueue("check_downloads")
 
 
 def handle_failed(db: Session, q: QueueItem, reason: str, c: DownloadClient | None = None, blocklist: bool = True,

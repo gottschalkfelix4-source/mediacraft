@@ -432,8 +432,8 @@ def retry_queue_import(qid: int, db: Session = Depends(get_db)):
     q = get_or_404(db, QueueItem, qid)
     if queue_svc.import_running(qid):
         raise HTTPException(409, "Import läuft bereits")
-    ok = queue_svc.retry_import(db, q)
-    return {"ok": ok, "messages": q.messages}
+    queue_svc.schedule_import(db, q)
+    return {"ok": True, "queued": True, "messages": q.messages}
 
 
 def _history_dict(h: History) -> dict:

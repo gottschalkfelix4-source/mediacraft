@@ -224,7 +224,7 @@ export const api = {
   queue: () => get<T.QueueItem[]>("/queue"),
   removeQueue: (id: number, opts: { remove_from_client: boolean; blocklist: boolean; search_again: boolean }) =>
     del<Ok>(`/queue/${id}`, opts),
-  retryQueueImport: (id: number) => post<{ ok: boolean; messages: string[] }>(`/queue/${id}/import`),
+  retryQueueImport: (id: number) => post<{ ok: boolean; queued?: boolean; messages: string[] }>(`/queue/${id}/import`),
   history: (page: number, pageSize: number, event: string) =>
     get<T.HistoryPage>("/history", { page, page_size: pageSize, event }),
   markFailed: (id: number) => post<Ok>(`/history/${id}/failed`),

@@ -48,7 +48,7 @@ Wird in die Bibliothek kopiert`}>
   }
   const pct = q.status === "completed" ? 100 : q.progress || 0;
   const label =
-    q.status === "completed" ? "fertig, Import folgt"
+    q.status === "completed" ? "wartet auf Import"
     : q.status === "paused" ? "pausiert"
     : q.status === "grabbed" || q.status === "queued" || (!pct && q.status !== "warning") ? "wartet"
     : `${pct.toFixed(pct < 10 ? 1 : 0)} %${q.eta_seconds ? ` · ${fmtDuration(q.eta_seconds)}` : ""}`;
