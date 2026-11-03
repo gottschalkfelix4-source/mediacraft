@@ -180,6 +180,11 @@ def _restart_later(delay: float = 1.0) -> None:
     def run():
         time.sleep(delay)
         logging.getLogger("mediacraft").warning("Neustart…")
+        if os.name == "nt":  # execv doesn't quote arguments with spaces on Windows
+            import subprocess
+
+            subprocess.Popen([sys.executable, "-m", "app.main"], cwd=os.getcwd())
+            os._exit(0)
         os.execv(sys.executable, [sys.executable, "-m", "app.main"])
 
     threading.Thread(target=run, daemon=True, name="restart").start()
