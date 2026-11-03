@@ -11,7 +11,7 @@ from ..core.scheduler import commands
 from ..indexers import newznab, usage
 from ..metadata.manager import MetadataManager
 from ..models import Episode, Indexer, Movie, Series, utcnow
-from . import backup, library, maintenance, queue, rss, search
+from . import backup, delay, library, maintenance, queue, rss, search
 from .notifications import notify
 
 log = logging.getLogger("commands")
@@ -156,3 +156,4 @@ def register_all() -> None:
     commands.register("disk_scan_all", maintenance.scan_all)
     commands.register("housekeeping", maintenance.housekeeping)
     commands.register("backup", backup.scheduled_backup)
+    commands.register("process_pending", delay.process_pending)

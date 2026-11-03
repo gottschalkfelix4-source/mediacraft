@@ -107,6 +107,7 @@ def _download_interval(all_cfg: dict) -> float:
 
 TASKS = [
     Task("check_downloads", "Downloads prüfen", _download_interval, "check_downloads"),
+    Task("process_pending", "Zurückgestellte Releases", lambda c: 120, "process_pending"),
     Task("rss_sync", "RSS-Sync", _cfg("indexers", "rss_interval_minutes", 60), "rss_sync"),
     Task("poll_limits", "Indexer-Limits abfragen", _cfg("indexers", "limits_poll_minutes", 60, 15), "poll_limits"),
     Task("refresh_metadata", "Metadaten aktualisieren", _cfg("metadata", "refresh_interval_hours", 3600), "refresh_all"),

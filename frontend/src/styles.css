@@ -1461,3 +1461,8 @@ tr.rel-details td { background: var(--bg-elev-2); font-size: 12.5px; }
 .dl-progress .progress { flex: 1; min-width: 70px; }
 .dl-progress .progress-bar { transition: width 1s linear; }
 .dl-import-label { color: var(--success); font-weight: 500; }
+
+.selection-bar { justify-content: flex-start; margin-top: 12px; }
+.selection-bar .grow { flex: 1; }
+.w-check { width: 34px; }
+.row-selected td { background: var(--accent-soft, color-mix(in srgb, var(--accent) 12%, transparent)); }

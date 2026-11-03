@@ -7,6 +7,7 @@ import { Modal, useConfirm } from "../../components/Modal";
 import { useApiMutation, useCustomFormats, useQualities } from "../../hooks";
 import { langLabel, LANGUAGES } from "../../format";
 import { Section } from "./common";
+import { DelayProfilesSection } from "./DelayProfiles";
 import type { QualityProfile } from "../../types";
 
 export function ProfilesSettings() {
@@ -75,6 +76,7 @@ export function ProfilesSettings() {
           })}
         </div>
       </Section>
+      <DelayProfilesSection />
       {editing && <ProfileEditor initial={editing} formats={formats} onClose={() => setEditing(null)} />}
     </div>
   );

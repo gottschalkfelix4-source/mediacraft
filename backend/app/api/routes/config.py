@@ -13,7 +13,7 @@ from ...downloadclients.base import ClientError
 from ...downloadclients.manager import CLIENT_CLASSES, CLIENT_DEFAULTS, get_client
 from ...indexers import newznab, usage
 from ...metadata.manager import MetadataManager
-from ...models import (CustomFormat, DownloadClient, Indexer, IndexerEvent, Movie, Notification, QualityProfile,
+from ...models import (CustomFormat, DelayProfile, DownloadClient, Indexer, IndexerEvent, Movie, Notification, QualityProfile,
                        RemotePathMapping, RootFolder, Series, Tag, iso, utcnow)
 from ...services import notifications as notif
 from ..deps import apply, get_or_404, require_auth
@@ -159,6 +159,51 @@ def create_tag(body: dict, db: Session = Depends(get_db)):
 @router.delete("/tags/{tid}")
 def delete_tag(tid: int, db: Session = Depends(get_db)):
     db.delete(get_or_404(db, Tag, tid))
+    return {"ok": True}
+
+
+# ===================================================================================== delay profiles
+DELAY_FIELDS = ("order", "enabled", "preferred_protocol", "usenet_delay", "torrent_delay", "bypass_highest_quality",
+                "bypass_min_score", "tags")
+
+
+@router.get("/delayprofiles")
+def list_delay_profiles(db: Session = Depends(get_db)):
+    rows = db.query(DelayProfile).all()
+    rows.sort(key=lambda p: (not p.tags, p.order, p.id))  # tagged first, default last
+    return [p.to_dict() for p in rows]
+
+
+@router.post("/delayprofiles")
+def create_delay_profile(body: dict, db: Session = Depends(get_db)):
+    if not body.get("tags"):
+        raise HTTPException(400, "Zusätzliche Delay-Profile brauchen mindestens einen Tag")
+    p = apply(DelayProfile(), body, DELAY_FIELDS)
+    db.add(p)
+    db.flush()
+    return p.to_dict()
+
+
+@router.put("/delayprofiles/{pid}")
+def update_delay_profile(pid: int, body: dict, db: Session = Depends(get_db)):
+    p = get_or_404(db, DelayProfile, pid)
+    was_default = not p.tags
+    apply(p, body, DELAY_FIELDS)
+    if was_default:
+        p.tags = []  # the default profile stays the default
+        p.enabled = True
+    elif not p.tags:
+        raise HTTPException(400, "Zusätzliche Delay-Profile brauchen mindestens einen Tag")
+    db.flush()
+    return p.to_dict()
+
+
+@router.delete("/delayprofiles/{pid}")
+def delete_delay_profile(pid: int, db: Session = Depends(get_db)):
+    p = get_or_404(db, DelayProfile, pid)
+    if not p.tags:
+        raise HTTPException(400, "Das Standard-Delay-Profil kann nicht gelöscht werden")
+    db.delete(p)
     return {"ok": True}
 
 

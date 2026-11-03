@@ -16,8 +16,9 @@ from ...core.scheduler import commands
 from ...db import get_db
 from ...indexers.newznab import Release
 from ...metadata.manager import MetadataManager
-from ...models import (Blocklist, DownloadClient, Episode, History, MediaFile, Movie, QualityProfile, QueueItem,
-                       RootFolder, Series, iso, utcnow)
+from ...models import (Blocklist, DownloadClient, Episode, History, MediaFile, Movie, PendingRelease, QualityProfile,
+                       QueueItem, RootFolder, Series, iso, utcnow)
+from ...services import delay as delay_svc
 from ...services import importer, library, maintenance
 from ...services import queue as queue_svc
 from ...services import search as search_svc
@@ -90,25 +91,78 @@ def get_movie(mid: int, db: Session = Depends(get_db)):
     return library.movie_to_dict(get_or_404(db, Movie, mid))
 
 
+def _update_with_move(db: Session, item, body: dict, fields: tuple) -> None:
+    """Apply edits; a changed path/root folder moves the folder on disk when ``move_files`` is set."""
+    new_path = body.get("path")
+    new_root = body.get("root_folder")
+    apply(item, body, tuple(f for f in fields if f not in ("path", "root_folder")))
+    try:
+        if new_path and os.path.normpath(new_path) != os.path.normpath(item.path or ""):
+            if new_root:
+                item.root_folder = new_root
+            if body.get("move_files"):
+                library.move_item(db, item, new_path)
+            else:
+                item.path = new_path
+        elif new_root and new_root != item.root_folder:
+            library.change_root_folder(db, item, new_root, bool(body.get("move_files")))
+    except (library.LibraryError, OSError) as e:
+        raise HTTPException(400, f"Verschieben fehlgeschlagen: {e}")
+
+
+def _apply_tags(item, tags: list[int], mode: str) -> None:
+    current = list(item.tags or [])
+    if mode == "add":
+        item.tags = current + [t for t in tags if t not in current]
+    elif mode == "remove":
+        item.tags = [t for t in current if t not in tags]
+    else:
+        item.tags = list(tags)
+
+
+def _bulk_update(db: Session, model, body: dict, fields: tuple) -> dict:
+    """Mass editor: ``{ids, changes, tags_mode: add|remove|replace, move_files}``."""
+    changes = dict(body.get("changes") or {})
+    tags = changes.pop("tags", None)
+    root = changes.pop("root_folder", None)
+    errors = []
+    items = db.query(model).filter(model.id.in_(body.get("ids") or [])).all()
+    for item in items:
+        apply(item, changes, fields)
+        if tags is not None:
+            _apply_tags(item, tags, body.get("tags_mode", "replace"))
+        if root and root != item.root_folder:
+            try:
+                library.change_root_folder(db, item, root, bool(body.get("move_files")))
+                db.commit()  # every moved folder is final on disk – keep the database in step
+            except (library.LibraryError, OSError) as e:
+                db.rollback()
+                errors.append(f"{item.title}: {e}")
+    return {"updated": len(items), "errors": errors}
+
+
+def _bulk_delete(db: Session, model, body: dict, delete) -> dict:
+    items = db.query(model).filter(model.id.in_(body.get("ids") or [])).all()
+    for item in items:
+        delete(db, item, bool(body.get("delete_files")))
+    return {"deleted": len(items)}
+
+
 @router.put("/movies/{mid}")
 def update_movie(mid: int, body: dict, db: Session = Depends(get_db)):
     m = get_or_404(db, Movie, mid)
-    old_path = m.path
-    apply(m, body, MOVIE_EDIT)
-    if body.get("move_files") and old_path != m.path and os.path.isdir(old_path):
-        os.makedirs(os.path.dirname(m.path), exist_ok=True)
-        os.replace(old_path, m.path) if not os.path.exists(m.path) else None
-        if m.file and m.file.path.startswith(old_path):
-            m.file.path = m.path + m.file.path[len(old_path):]
+    _update_with_move(db, m, body, MOVIE_EDIT)
     return library.movie_to_dict(m)
 
 
 @router.put("/movies")
 def bulk_update_movies(body: dict, db: Session = Depends(get_db)):
-    ids = body.get("ids") or []
-    for m in db.query(Movie).filter(Movie.id.in_(ids)).all():
-        apply(m, body.get("changes") or {}, ("monitored", "minimum_availability", "quality_profile_id", "tags"))
-    return {"updated": len(ids)}
+    return _bulk_update(db, Movie, body, ("monitored", "minimum_availability", "quality_profile_id"))
+
+
+@router.post("/movies/delete")
+def bulk_delete_movies(body: dict, db: Session = Depends(get_db)):
+    return _bulk_delete(db, Movie, body, library.delete_movie)
 
 
 @router.post("/movies/{mid}/rematch")
@@ -202,10 +256,19 @@ def get_series(sid: int, db: Session = Depends(get_db)):
 @router.put("/series/{sid}")
 def update_series(sid: int, body: dict, db: Session = Depends(get_db)):
     s = get_or_404(db, Series, sid)
-    apply(s, body, SERIES_EDIT)
-    if "monitored" in body and body["monitored"] is False:
-        pass  # episodes keep their own flags, like Sonarr
+    _update_with_move(db, s, body, SERIES_EDIT)  # episodes keep their own monitored flags, like Sonarr
     return library.series_to_dict(s, library.series_stats(db, [sid]).get(sid))
+
+
+@router.put("/series")
+def bulk_update_series(body: dict, db: Session = Depends(get_db)):
+    return _bulk_update(db, Series, body, ("monitored", "monitor_new_seasons", "quality_profile_id", "series_type",
+                                           "season_folder"))
+
+
+@router.post("/series/delete")
+def bulk_delete_series(body: dict, db: Session = Depends(get_db)):
+    return _bulk_delete(db, Series, body, library.delete_series)
 
 
 @router.post("/series/{sid}/rematch")
@@ -434,6 +497,24 @@ def retry_queue_import(qid: int, db: Session = Depends(get_db)):
         raise HTTPException(409, "Import läuft bereits")
     queue_svc.schedule_import(db, q)
     return {"ok": True, "queued": True, "messages": q.messages}
+
+
+@router.get("/pending")
+def list_pending(db: Session = Depends(get_db)):
+    rows = db.query(PendingRelease).order_by(PendingRelease.release_at).all()
+    return [delay_svc.pending_to_dict(db, p) for p in rows]
+
+
+@router.post("/pending/{pid}/grab")
+def grab_pending_now(pid: int, db: Session = Depends(get_db)):
+    get_or_404(db, PendingRelease, pid)
+    return delay_svc.process_pending(db, force_ids={pid})
+
+
+@router.delete("/pending/{pid}")
+def delete_pending(pid: int, db: Session = Depends(get_db)):
+    db.delete(get_or_404(db, PendingRelease, pid))
+    return {"ok": True}
 
 
 def _history_dict(h: History) -> dict:

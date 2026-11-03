@@ -166,6 +166,13 @@ export const api = {
   updateNotification: (id: number, b: T.NotificationBase) => put<T.Notification>(`/notifications/${id}`, b),
   deleteNotification: (id: number) => del<Ok>(`/notifications/${id}`),
   testNotification: (b: T.NotificationBase) => post<Ok>("/notifications/test", b),
+  delayProfiles: () => get<T.DelayProfile[]>("/delayprofiles"),
+  createDelayProfile: (b: Partial<T.DelayProfile>) => post<T.DelayProfile>("/delayprofiles", b),
+  updateDelayProfile: (id: number, b: Partial<T.DelayProfile>) => put<T.DelayProfile>(`/delayprofiles/${id}`, b),
+  deleteDelayProfile: (id: number) => del<Ok>(`/delayprofiles/${id}`),
+  pending: () => get<T.PendingRelease[]>("/pending"),
+  grabPending: (id: number) => post<{ grabbed: number; errors: string[] }>(`/pending/${id}/grab`),
+  deletePending: (id: number) => del<Ok>(`/pending/${id}`),
   metadataProviders: () => get<T.MetadataProviderStatus[]>("/metadata/providers"),
 
   // ------------------------------------------------------------- media
@@ -186,7 +193,8 @@ export const api = {
   }) => post<T.Movie>("/movies", b),
   updateMovie: (id: number, b: Partial<T.Movie> & { move_files?: boolean }) => put<T.Movie>(`/movies/${id}`, b),
   rematchMovie: (id: number, ids: T.LookupIds) => post<T.Movie>(`/movies/${id}/rematch`, { ids }),
-  bulkUpdateMovies: (ids: number[], changes: Partial<T.Movie>) => put<{ updated: number }>("/movies", { ids, changes }),
+  bulkUpdateMovies: (b: T.BulkEdit) => put<T.BulkResult>("/movies", b),
+  bulkDeleteMovies: (ids: number[], delete_files: boolean) => post<{ deleted: number }>("/movies/delete", { ids, delete_files }),
   deleteMovie: (id: number, deleteFiles: boolean) => del<Ok>(`/movies/${id}`, { delete_files: deleteFiles }),
   deleteMovieFile: (id: number) => del<T.Movie>(`/movies/${id}/file`),
   movieReleases: (id: number) => get<T.ReleaseSearchResult>(`/movies/${id}/releases`),
@@ -208,7 +216,9 @@ export const api = {
     search: boolean;
     path?: string;
   }) => post<T.Series>("/series", b),
-  updateSeries: (id: number, b: Partial<T.Series>) => put<T.Series>(`/series/${id}`, b),
+  updateSeries: (id: number, b: Partial<T.Series> & { move_files?: boolean }) => put<T.Series>(`/series/${id}`, b),
+  bulkUpdateSeries: (b: T.BulkEdit) => put<T.BulkResult>("/series", b),
+  bulkDeleteSeries: (ids: number[], delete_files: boolean) => post<{ deleted: number }>("/series/delete", { ids, delete_files }),
   updateSeason: (id: number, season: number, monitored: boolean) =>
     put<T.Series>(`/series/${id}/seasons/${season}`, { monitored }),
   seriesMonitoring: (id: number, monitor: string) => post<T.Series>(`/series/${id}/monitoring`, { monitor }),

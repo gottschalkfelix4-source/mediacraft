@@ -77,13 +77,18 @@ def get_client(cfg: DownloadClient) -> BaseClient:
     return cls(cfg)
 
 
-def pick_client(db: Session, protocol: str, preferred_id: int | None = None) -> DownloadClient | None:
-    q = [c for c in db.query(DownloadClient).filter(DownloadClient.enabled.is_(True)).all() if c.protocol == protocol]
+def pick_client(db: Session, protocol: str, preferred_id: int | None = None,
+                tags: list[int] | None = None) -> DownloadClient | None:
+    """Client for a grab. Clients with tags only take items sharing one of them (and win over untagged
+    clients for those items); clients without tags take everything."""
+    tags = set(tags or [])
+    q = [c for c in db.query(DownloadClient).filter(DownloadClient.enabled.is_(True)).all()
+         if c.protocol == protocol and (not c.tags or set(c.tags) & tags)]
     if preferred_id:
         for c in q:
             if c.id == preferred_id:
                 return c
-    q.sort(key=lambda c: (c.priority, c.id))
+    q.sort(key=lambda c: (0 if c.tags else 1, c.priority, c.id))
     return q[0] if q else None
 
 

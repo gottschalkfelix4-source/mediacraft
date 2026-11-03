@@ -5,6 +5,7 @@ import { useSeriesList, useProfiles, useCommand, useStored } from "../../hooks";
 import { Empty, ErrorBox, Loading, PageHeader, Progress, Badge } from "../../components/ui";
 import { Poster } from "../../components/Media";
 import { fmtDate, fmtSize, SERIES_STATUS_LABELS, SERIES_TYPE_LABELS } from "../../format";
+import { SelectAllBox, SelectionBar, useSelection } from "../../components/MassEditor";
 import { LibraryToolbar, textMatch, type FilterMode, type SortMode, type ViewMode } from "./common";
 import type { Series } from "../../types";
 
@@ -23,6 +24,8 @@ export function SeriesPage() {
   const [filter, setFilter] = useStored<FilterMode>("mc-series-filter", "all");
   const [sort, setSort] = useStored<SortMode>("mc-series-sort", "title");
   const [search, setSearch] = useState("");
+  const [selecting, setSelecting] = useState(false);
+  const sel = useSelection();
   const command = useCommand();
 
   const list = useMemo(() => {
@@ -47,7 +50,19 @@ export function SeriesPage() {
           <Plus size={16} /> Serie hinzufügen
         </Link>
       </PageHeader>
-      <LibraryToolbar view={view} setView={setView} filter={filter} setFilter={setFilter} sort={sort} setSort={setSort} search={search} setSearch={setSearch} count={list.length} />
+      <LibraryToolbar view={view} setView={setView} filter={filter} setFilter={setFilter} sort={sort} setSort={setSort} search={search} setSearch={setSearch} count={list.length}>
+        <button
+          className={`btn btn-sm ${selecting ? "btn-primary" : ""}`}
+          onClick={() => {
+            setSelecting(!selecting);
+            sel.clear();
+            if (!selecting) setView("table");
+          }}
+          title="Mehrere Einträge auf einmal bearbeiten"
+        >
+          {selecting ? "Auswahl beenden" : "Auswählen"}
+        </button>
+      </LibraryToolbar>
       {isLoading && <Loading />}
       {error ? <ErrorBox error={error} /> : null}
       {data && data.length === 0 && (
@@ -83,6 +98,11 @@ export function SeriesPage() {
             <table className="table">
               <thead>
                 <tr>
+                  {selecting && (
+                    <th className="w-check">
+                      <SelectAllBox all={list.map((x) => x.id)} selected={sel.ids} onChange={(on) => sel.setAll(list.map((x) => x.id), on)} />
+                    </th>
+                  )}
                   <th className="w-icon" />
                   <th>Titel</th>
                   <th>Jahr</th>
@@ -99,7 +119,12 @@ export function SeriesPage() {
                 {list.map((s) => {
                   const p = seriesProgress(s);
                   return (
-                    <tr key={s.id}>
+                    <tr key={s.id} className={sel.ids.has(s.id) ? "row-selected" : ""}>
+                        {selecting && (
+                          <td>
+                            <input type="checkbox" aria-label={`${s.title} auswählen`} checked={sel.ids.has(s.id)} onChange={() => sel.toggle(s.id)} />
+                          </td>
+                        )}
                       <td title={s.monitored ? "Überwacht" : "Nicht überwacht"}>{s.monitored ? <Bookmark size={15} className="accent" /> : <BookmarkX size={15} className="muted" />}</td>
                       <td>
                         <Link to={`/series/${s.id}`} className="strong">
@@ -131,6 +156,7 @@ export function SeriesPage() {
           </div>
         )
       )}
+      {selecting && <SelectionBar kind="series" ids={sel.ids} onClear={sel.clear} />}
     </div>
   );
 }

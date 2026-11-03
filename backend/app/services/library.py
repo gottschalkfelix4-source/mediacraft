@@ -446,3 +446,42 @@ def episode_to_dict(e: Episode, with_file: bool = True) -> dict:
         "air_date_utc": iso(e.air_date_utc), "runtime": e.runtime, "monitored": e.monitored, "has_file": e.has_file,
         "file_id": e.file_id, "file": e.file.to_dict() if with_file and e.file else None,
     }
+
+
+# ======================================================================================== moving
+def move_item(db: Session, item: Movie | Series, new_path: str) -> bool:
+    """Move a movie/series folder to ``new_path`` (also across file systems) and update all file paths.
+    Returns True when files were moved on disk."""
+    old_path = item.path
+    new_path = os.path.normpath(new_path)
+    if not old_path or os.path.normpath(old_path) == new_path:
+        item.path = new_path
+        return False
+    moved = False
+    if os.path.isdir(old_path):
+        if os.path.exists(new_path) and os.listdir(new_path):
+            raise LibraryError(f"Zielordner existiert bereits und ist nicht leer: {new_path}")
+        os.makedirs(os.path.dirname(new_path), exist_ok=True)
+        if os.path.isdir(new_path):
+            os.rmdir(new_path)
+        shutil.move(old_path, new_path)
+        moved = True
+    col = MediaFile.movie_id if isinstance(item, Movie) else MediaFile.series_id
+    prefix = os.path.normpath(old_path)
+    for f in db.query(MediaFile).filter(col == item.id).all():
+        p = os.path.normpath(f.path)
+        if p == prefix or p.startswith(prefix + os.sep):
+            f.path = new_path + p[len(prefix):]
+    item.path = new_path
+    log.info("Verschoben: %s → %s", old_path, new_path)
+    return moved
+
+
+def change_root_folder(db: Session, item: Movie | Series, root_folder: str, move_files: bool) -> None:
+    """New root folder; the item's own folder name stays the same."""
+    new_path = os.path.join(root_folder, os.path.basename(os.path.normpath(item.path)))
+    item.root_folder = root_folder
+    if move_files:
+        move_item(db, item, new_path)
+    else:
+        item.path = new_path

@@ -217,6 +217,9 @@ def housekeeping(db: Session) -> dict:
     mc = db.query(MetadataCache).filter(MetadataCache.created < now - timedelta(days=7)).delete()
     qi = db.query(QueueItem).filter(QueueItem.status.in_(("failed", "removed")),
                                     QueueItem.updated < now - timedelta(days=7)).delete()
+    from .delay import drop_stale
+
+    pending = drop_stale(db)
     cfg = settings_mod.get(db, "media")
     rb, days = cfg.get("recycle_bin"), int(cfg.get("recycle_bin_days") or 0)
     removed = 0
@@ -232,4 +235,4 @@ def housekeeping(db: Session) -> dict:
                 dp = os.path.join(root, d)
                 if not os.listdir(dp):
                     os.rmdir(dp)
-    return {"indexer_events": ev, "metadata_cache": mc, "queue": qi, "recycle_bin": removed}
+    return {"indexer_events": ev, "metadata_cache": mc, "queue": qi, "recycle_bin": removed, "pending": pending}

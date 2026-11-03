@@ -14,6 +14,7 @@ from ..indexers import newznab, usage
 from ..indexers.newznab import IndexerError
 from ..indexers.usage import LimitReached
 from ..models import Episode, Indexer, Movie, Series, utcnow
+from . import delay
 from . import search as search_svc
 from .grab import grab_decision
 
@@ -73,7 +74,7 @@ def rss_sync(db: Session) -> dict:
     db.expire_all()
     series_idx, movie_idx, by_tvdb, by_imdb, by_tmdb = _lookup(db)
     ctx = dec.Context(db)
-    movie_best: dict[int, dec.Decision] = {}
+    movie_cands: dict[int, list[dec.Decision]] = {}
     ep_decisions: list[dec.Decision] = []
     for r in releases:
         p = parse(r.title)
@@ -94,18 +95,37 @@ def rss_sync(db: Session) -> dict:
                 cands = movie_idx.get(p.clean_title, [])
             for m in dict.fromkeys(cands):
                 d = dec.evaluate_movie(ctx, m, r, p)
-                if d.approved and (m.id not in movie_best or d.sort_key() > movie_best[m.id].sort_key()):
-                    movie_best[m.id] = d
+                if d.approved:
+                    movie_cands.setdefault(m.id, []).append(d)
 
-    for d in movie_best.values():
+    stats["held"] = 0
+    for mid, cands in movie_cands.items():
+        m = db.get(Movie, mid)
+        profile = delay.profile_for(db, m.tags)
+        d = delay.prefer(cands, profile)[0]
+        if delay.hold(db, d, profile, ctx.profiles[m.quality_profile_id]):
+            stats["held"] += 1
+            continue
         try:
             grab_decision(db, d)
             stats["grabbed"] += 1
         except Exception as e:
             stats["errors"].append(f"{d.release.title}: {e}")
     covered: set[int] = set()
-    for d in dec.rank(ep_decisions):
+    by_series: dict[int, list[dec.Decision]] = {}
+    for d in ep_decisions:
+        by_series.setdefault(d.series_id, []).append(d)
+    ranked_eps: list[tuple[dec.Decision, object, Series]] = []
+    for sid, cands in by_series.items():
+        s = db.get(Series, sid)
+        profile = delay.profile_for(db, s.tags)
+        ranked_eps += [(d, profile, s) for d in delay.prefer(cands, profile)]
+    for d, profile, s in ranked_eps:
         if set(d.episode_ids) & covered:
+            continue
+        if delay.hold(db, d, profile, ctx.profiles[s.quality_profile_id]):
+            covered |= set(d.episode_ids)
+            stats["held"] += 1
             continue
         try:
             grab_decision(db, d)

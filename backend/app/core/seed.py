@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from ..models import CustomFormat, QualityProfile
+from ..models import CustomFormat, DelayProfile, QualityProfile
 from .qualities import default_profile_items
 
 _PROFILES = [
@@ -34,6 +34,9 @@ _DEFAULT_SCORES = {"German DL": 100, "German": 50, "HDR": 10, "Dolby Vision": 5,
 
 
 def seed_defaults(db: Session) -> None:
+    if db.query(DelayProfile).count() == 0:
+        db.add(DelayProfile(order=1000, enabled=True, preferred_protocol="usenet", usenet_delay=0, torrent_delay=0,
+                            bypass_highest_quality=True, tags=[]))
     if db.query(CustomFormat).count() == 0:
         for name, conds in _FORMATS:
             db.add(CustomFormat(name=name, conditions=conds))

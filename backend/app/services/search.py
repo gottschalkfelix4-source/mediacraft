@@ -162,11 +162,15 @@ def search_movie(db: Session, movie: Movie, manual: bool = False) -> dict:
 
 
 def auto_search_movie(db: Session, movie: Movie) -> Optional[dict]:
+    from . import delay
     from .grab import grab_decision
 
     res = search_movie(db, movie, manual=False)
-    for d in res["decisions"]:
+    profile = delay.profile_for(db, movie.tags)
+    for d in delay.prefer(res["decisions"], profile):
         if d.approved:
+            if delay.hold(db, d, profile, series_profile_by_id(db, movie.quality_profile_id)):
+                return None
             try:
                 return grab_decision(db, d, manual=False)
             except Exception as e:
@@ -255,16 +259,21 @@ def search_episodes(db: Session, series: Series, episodes: list[Episode], manual
 
 def auto_search_episodes(db: Session, series: Series, episodes: list[Episode]) -> list[dict]:
     """Grab best releases until all requested episodes are covered (season packs first if better)."""
+    from . import delay
     from .grab import grab_decision
 
     res = search_episodes(db, series, episodes, manual=False)
     remaining = {e.id for e in episodes}
     grabbed = []
-    for d in res["decisions"]:
+    profile = delay.profile_for(db, series.tags)
+    for d in delay.prefer(res["decisions"], profile):
         if not d.approved or not remaining:
             continue
         ids = set(d.episode_ids)
         if not ids & remaining:
+            continue
+        if delay.hold(db, d, profile, series_profile(series)):
+            remaining -= ids  # nothing worse for these episodes while the better one waits
             continue
         try:
             grabbed.append(grab_decision(db, d, manual=False))
@@ -289,6 +298,12 @@ def wanted_episodes(series: Series, season: Optional[int] = None, include_cutoff
         elif include_cutoff and e.file and not cutoff_met(series_profile(series), e.file):
             out.append(e)
     return out
+
+
+def series_profile_by_id(db: Session, pid: int):
+    from ..models import QualityProfile
+
+    return db.get(QualityProfile, pid)
 
 
 def series_profile(series: Series):

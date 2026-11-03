@@ -722,6 +722,48 @@ export interface DiskSpace {
 }
 
 // ---------------------------------------------------------------- activity
+export interface DelayProfile {
+  id: number;
+  order: number;
+  enabled: boolean;
+  preferred_protocol: "usenet" | "torrent";
+  usenet_delay: number;
+  torrent_delay: number;
+  bypass_highest_quality: boolean;
+  bypass_min_score: number | null;
+  tags: number[];
+}
+
+export interface PendingRelease {
+  id: number;
+  title: string;
+  media_type: "movie" | "series";
+  movie_id: number | null;
+  series_id: number | null;
+  episode_ids: number[];
+  target: string;
+  protocol: string;
+  quality: string;
+  format_score: number;
+  indexer: string | null;
+  size: number;
+  added: string | null;
+  release_at: string | null;
+  reason: string | null;
+}
+
+export interface BulkEdit {
+  ids: number[];
+  changes: Record<string, unknown>;
+  tags_mode?: "add" | "remove" | "replace";
+  move_files?: boolean;
+}
+
+export interface BulkResult {
+  updated: number;
+  errors: string[];
+}
+
 export interface QueueItem {
   id: number;
   title: string;

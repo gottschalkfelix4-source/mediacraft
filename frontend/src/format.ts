@@ -219,6 +219,7 @@ export const COMMAND_LABELS: Record<string, string> = {
   disk_scan_all: "Festplatten-Scan",
   housekeeping: "Aufräumen",
   backup: "Backup",
+  process_pending: "Zurückgestellte Releases",
 };
 
 export function commandLabel(name: string): string {

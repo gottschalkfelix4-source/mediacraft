@@ -12,14 +12,15 @@ import { fmtDateTime, fmtDuration, fmtSize, HISTORY_EVENT_LABELS, langLabel, QUE
 import { HistoryTable } from "./library/HistoryTable";
 import type { QueueItem } from "../types";
 
-type TabKey = "queue" | "history" | "blocklist";
+type TabKey = "queue" | "pending" | "history" | "blocklist";
 
 export function ActivityPage() {
   const params = useParams();
-  const tab = (["queue", "history", "blocklist"].includes(params.tab ?? "") ? params.tab : "queue") as TabKey;
+  const tab = (["queue", "pending", "history", "blocklist"].includes(params.tab ?? "") ? params.tab : "queue") as TabKey;
   const nav = useNavigate();
   const command = useCommand();
   const queue = useQuery({ queryKey: ["queue"], queryFn: api.queue, refetchInterval: 5000 });
+  const pending = useQuery({ queryKey: ["pending"], queryFn: api.pending, refetchInterval: 30_000 });
   const qc = useQueryClient();
   useEventListener((m) => {
     if (m.type === "queue.updated") qc.invalidateQueries({ queryKey: ["queue"] });
@@ -38,6 +39,7 @@ export function ActivityPage() {
       <Tabs
         tabs={[
           { key: "queue", label: "Warteschlange", count: queue.data?.length },
+          { key: "pending", label: "Zurückgestellt", count: pending.data?.length || undefined },
           { key: "history", label: "Verlauf" },
           { key: "blocklist", label: "Blocklist" },
         ]}
@@ -45,6 +47,7 @@ export function ActivityPage() {
         onChange={(k) => nav(`/activity/${k}`)}
       />
       {tab === "queue" && <QueueTab items={queue.data} loading={queue.isLoading} error={queue.error} />}
+      {tab === "pending" && <PendingTab />}
       {tab === "history" && <HistoryTab />}
       {tab === "blocklist" && <BlocklistTab />}
     </div>
@@ -337,5 +340,67 @@ function BlocklistTab() {
         </div>
       )}
     </>
+  );
+}
+
+function PendingTab() {
+  const { data, isLoading, error } = useQuery({ queryKey: ["pending"], queryFn: api.pending, refetchInterval: 30_000 });
+  const grab = useApiMutation((id: number) => api.grabPending(id), {
+    invalidate: [["pending"], ["queue"]],
+    success: (r) => (r.grabbed ? "Release wird geladen" : r.errors[0] ?? "Release ist nicht mehr gültig"),
+  });
+  const drop = useApiMutation((id: number) => api.deletePending(id), { invalidate: [["pending"]], success: "Verworfen" });
+  if (isLoading) return <Loading />;
+  if (error) return <ErrorBox error={error} />;
+  if (!data?.length)
+    return (
+      <Empty title="Nichts zurückgestellt">
+        <p className="muted">Hier landen Releases, die wegen eines Delay-Profils noch warten.</p>
+      </Empty>
+    );
+  return (
+    <div className="table-wrap">
+      <table className="table">
+        <thead>
+          <tr>
+            <th>Für</th>
+            <th>Release</th>
+            <th>Qualität</th>
+            <th>Indexer</th>
+            <th className="num">Größe</th>
+            <th>Lädt ab</th>
+            <th className="w-actions" />
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((p) => (
+            <tr key={p.id}>
+              <td>
+                <Link to={p.movie_id ? `/movies/${p.movie_id}` : `/series/${p.series_id}`} className="strong">
+                  {p.target}
+                </Link>
+              </td>
+              <td className="small break" title={p.reason ?? undefined}>
+                {p.protocol === "torrent" ? <Magnet size={13} /> : <Newspaper size={13} />} {p.title}
+              </td>
+              <td>
+                <Badge>{p.quality}</Badge> {p.format_score ? <Badge tone="muted">{p.format_score}</Badge> : null}
+              </td>
+              <td className="small">{p.indexer ?? "–"}</td>
+              <td className="num">{fmtSize(p.size)}</td>
+              <td className="small nowrap">{fmtDateTime(p.release_at)}</td>
+              <td className="actions">
+                <button className="icon-btn" title="Jetzt laden" aria-label="Jetzt laden" onClick={() => grab.mutate(p.id)} disabled={grab.isPending}>
+                  <Download size={15} />
+                </button>
+                <button className="icon-btn danger" title="Verwerfen" aria-label="Verwerfen" onClick={() => drop.mutate(p.id)}>
+                  <Trash2 size={15} />
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

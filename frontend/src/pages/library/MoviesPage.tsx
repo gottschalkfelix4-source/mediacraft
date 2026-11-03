@@ -6,6 +6,7 @@ import { Empty, ErrorBox, Loading, PageHeader, Badge } from "../../components/ui
 import { DownloadStatus, useDownloads } from "../../components/DownloadStatus";
 import { Poster } from "../../components/Media";
 import { fmtDate, fmtSize, AVAILABILITY_LABELS, MOVIE_STATUS_LABELS } from "../../format";
+import { SelectAllBox, SelectionBar, useSelection } from "../../components/MassEditor";
 import { LibraryToolbar, textMatch, type FilterMode, type SortMode, type ViewMode } from "./common";
 import type { Movie } from "../../types";
 
@@ -16,6 +17,8 @@ export function MoviesPage() {
   const [filter, setFilter] = useStored<FilterMode>("mc-movies-filter", "all");
   const [sort, setSort] = useStored<SortMode>("mc-movies-sort", "title");
   const [search, setSearch] = useState("");
+  const [selecting, setSelecting] = useState(false);
+  const sel = useSelection();
   const command = useCommand();
 
   const list = useMemo(() => {
@@ -43,7 +46,19 @@ export function MoviesPage() {
           <Plus size={16} /> Film hinzufügen
         </Link>
       </PageHeader>
-      <LibraryToolbar view={view} setView={setView} filter={filter} setFilter={setFilter} sort={sort} setSort={setSort} search={search} setSearch={setSearch} count={list.length} />
+      <LibraryToolbar view={view} setView={setView} filter={filter} setFilter={setFilter} sort={sort} setSort={setSort} search={search} setSearch={setSearch} count={list.length}>
+        <button
+          className={`btn btn-sm ${selecting ? "btn-primary" : ""}`}
+          onClick={() => {
+            setSelecting(!selecting);
+            sel.clear();
+            if (!selecting) setView("table");
+          }}
+          title="Mehrere Einträge auf einmal bearbeiten"
+        >
+          {selecting ? "Auswahl beenden" : "Auswählen"}
+        </button>
+      </LibraryToolbar>
       {isLoading && <Loading />}
       {error ? <ErrorBox error={error} /> : null}
       {data && data.length === 0 && (
@@ -66,6 +81,11 @@ export function MoviesPage() {
             <table className="table">
               <thead>
                 <tr>
+                  {selecting && (
+                    <th className="w-check">
+                      <SelectAllBox all={list.map((x) => x.id)} selected={sel.ids} onChange={(on) => sel.setAll(list.map((x) => x.id), on)} />
+                    </th>
+                  )}
                   <th className="w-icon" />
                   <th>Titel</th>
                   <th>Jahr</th>
@@ -79,7 +99,12 @@ export function MoviesPage() {
               </thead>
               <tbody>
                 {list.map((m) => (
-                  <tr key={m.id}>
+                  <tr key={m.id} className={sel.ids.has(m.id) ? "row-selected" : ""}>
+                      {selecting && (
+                        <td>
+                          <input type="checkbox" aria-label={`${m.title} auswählen`} checked={sel.ids.has(m.id)} onChange={() => sel.toggle(m.id)} />
+                        </td>
+                      )}
                     <td title={m.monitored ? "Überwacht" : "Nicht überwacht"}>{m.monitored ? <Bookmark size={15} className="accent" /> : <BookmarkX size={15} className="muted" />}</td>
                     <td>
                       <Link to={`/movies/${m.id}`} className="strong">
@@ -100,6 +125,7 @@ export function MoviesPage() {
           </div>
         )
       )}
+      {selecting && <SelectionBar kind="movie" ids={sel.ids} onClear={sel.clear} />}
     </div>
   );
 }

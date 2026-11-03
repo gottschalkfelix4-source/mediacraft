@@ -77,6 +77,46 @@ class CustomFormat(Base):
         return {"id": self.id, "name": self.name, "conditions": self.conditions}
 
 
+class DelayProfile(Base):
+    """Wait a while before grabbing, e.g. for a German DL release or to prefer Usenet over torrents.
+    The profile without tags is the default; tagged profiles apply to movies/series sharing a tag."""
+    __tablename__ = "delay_profiles"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    order: Mapped[int] = mapped_column(Integer, default=1)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    preferred_protocol: Mapped[str] = mapped_column(String(16), default="usenet")  # usenet | torrent
+    usenet_delay: Mapped[int] = mapped_column(Integer, default=0)  # minutes
+    torrent_delay: Mapped[int] = mapped_column(Integer, default=0)
+    bypass_highest_quality: Mapped[bool] = mapped_column(Boolean, default=True)
+    bypass_min_score: Mapped[Optional[int]] = mapped_column(Integer)  # grab at once from this CF score on
+    tags: Mapped[list] = mapped_column(JSON, default=list)
+
+    def to_dict(self):
+        return {c: getattr(self, c) for c in (
+            "id", "order", "enabled", "preferred_protocol", "usenet_delay", "torrent_delay", "bypass_highest_quality",
+            "bypass_min_score", "tags")}
+
+
+class PendingRelease(Base):
+    """An approved release held back by a delay profile until ``release_at``."""
+    __tablename__ = "pending_releases"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    added: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    release_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    media_type: Mapped[str] = mapped_column(String(16))  # movie | series
+    movie_id: Mapped[Optional[int]] = mapped_column(Integer, index=True)
+    series_id: Mapped[Optional[int]] = mapped_column(Integer, index=True)
+    episode_ids: Mapped[list] = mapped_column(JSON, default=list)
+    title: Mapped[str] = mapped_column(String(1024))
+    indexer_id: Mapped[int] = mapped_column(Integer)
+    guid: Mapped[str] = mapped_column(String(1024))
+    protocol: Mapped[str] = mapped_column(String(16))
+    quality: Mapped[str] = mapped_column(String(32), default="Unknown")
+    format_score: Mapped[int] = mapped_column(Integer, default=0)
+    release: Mapped[dict] = mapped_column(JSON, default=dict)  # Release.to_dict()
+    reason: Mapped[Optional[str]] = mapped_column(String(512))
+
+
 class Movie(Base):
     __tablename__ = "movies"
     id: Mapped[int] = mapped_column(primary_key=True)

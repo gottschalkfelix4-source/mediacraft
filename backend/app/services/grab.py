@@ -35,9 +35,10 @@ def grab(db: Session, r: Release, *, quality: str, languages: list[str], format_
     idx = db.get(Indexer, r.indexer_id)
     if not idx:
         raise GrabError("Indexer existiert nicht mehr")
-    client_cfg = pick_client(db, r.protocol, idx.download_client_id)
+    target = db.get(Movie, movie_id) if movie_id else db.get(Series, series_id)
+    client_cfg = pick_client(db, r.protocol, idx.download_client_id, target.tags if target else None)
     if not client_cfg:
-        raise GrabError(f"Kein aktiver {r.protocol}-Downloadclient konfiguriert")
+        raise GrabError(f"Kein passender aktiver {r.protocol}-Downloadclient (Protokoll/Tags)")
     media_type = "movie" if movie_id else "series"
     category = client_cfg.movie_category if media_type == "movie" else client_cfg.tv_category
 
@@ -89,7 +90,6 @@ def grab(db: Session, r: Release, *, quality: str, languages: list[str], format_
                          "languages": languages, "format_score": format_score, "manual": manual,
                          "info_hash": r.info_hash or (magnet_hash(magnet) if magnet else None), "revision": revision}))
     db.flush()
-    target = db.get(Movie, movie_id) if movie_id else db.get(Series, series_id)
     name = target.title if target else r.title
     log.info("Grabbed '%s' von %s → %s", r.title, idx.name, client_cfg.name)
     live_state["active_downloads"] = True  # poll the client quickly from now on
