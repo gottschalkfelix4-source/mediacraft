@@ -114,7 +114,11 @@ TASKS = [
     Task("health_check", "Health-Check", lambda c: 300, "health_check"),
     Task("disk_scan", "Festplatten-Scan", lambda c: 6 * 3600, "disk_scan_all"),
     Task("housekeeping", "Aufräumen", lambda c: 24 * 3600, "housekeeping"),
+    Task("backup", "Backup", _cfg("backup", "interval_days", 86400), "backup"),
 ]
+
+
+TASK_SECTIONS = ("downloads", "indexers", "metadata", "wanted", "backup")
 
 
 class Scheduler:
@@ -134,7 +138,7 @@ class Scheduler:
 
     def status(self) -> list[dict]:
         with session_scope() as db:
-            cfg = {s: settings_mod.get(db, s) for s in ("downloads", "indexers", "metadata", "wanted")}
+            cfg = {s: settings_mod.get(db, s) for s in TASK_SECTIONS}
             states = {t.name: t for t in db.query(TaskState).all()}
             out = []
             for t in TASKS:
@@ -188,7 +192,7 @@ class Scheduler:
         while not self._stop.is_set():
             try:
                 with session_scope() as db:
-                    cfg = {s: settings_mod.get(db, s) for s in ("downloads", "indexers", "metadata", "wanted")}
+                    cfg = {s: settings_mod.get(db, s) for s in TASK_SECTIONS}
                     states = {t.name: t.last_run for t in db.query(TaskState).all()}
                 now = utcnow()
                 for t in TASKS:

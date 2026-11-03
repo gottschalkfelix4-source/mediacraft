@@ -62,9 +62,14 @@ def get_db() -> Iterator[Session]:
 
 
 def init_db() -> None:
-    from . import models  # noqa: F401  (register tables)
+    from sqlalchemy import inspect
 
+    from . import models  # noqa: F401  (register tables)
+    from .core.migrations import migrate
+
+    had_tables = bool(inspect(engine).get_table_names())
     Base.metadata.create_all(engine)
+    migrate(engine, had_tables)
     from .core.seed import seed_defaults
 
     with session_scope() as s:

@@ -94,6 +94,25 @@ export const api = {
     put<T.AllSettings[K]>(`/settings/${section}`, body),
   filesystem: (path = "", includeFiles = false) => get<T.FsListing>("/filesystem", { path, include_files: includeFiles || undefined }),
   diskspace: () => get<T.DiskSpace[]>("/diskspace"),
+  restart: () => post<Ok>("/system/restart"),
+  backups: () => get<T.BackupListing>("/system/backups"),
+  createBackup: () => post<T.BackupInfo>("/system/backups"),
+  deleteBackup: (name: string) => del<Ok>(`/system/backups/${encodeURIComponent(name)}`),
+  backupUrl: (name: string) => `${API_BASE}/system/backups/${encodeURIComponent(name)}`,
+  restoreBackup: (name: string) => post<Ok>(`/system/backups/${encodeURIComponent(name)}/restore`),
+  restoreUpload: async (file: File) => {
+    const res = await fetch(`${API_BASE}/system/backups-upload/restore`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/zip" },
+      body: file,
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      throw new ApiError(res.status, (data && typeof data.detail === "string" && data.detail) || `HTTP ${res.status}`);
+    }
+    return (await res.json()) as Ok;
+  },
 
   // ------------------------------------------------------------- config
   qualities: () => get<T.QualityDef[]>("/qualities"),
@@ -233,6 +252,21 @@ export const api = {
   clearBlocklist: () => del<{ deleted: number }>("/blocklist"),
   dashboard: () => get<T.Dashboard>("/dashboard"),
 };
+
+/** After a restart: wait until the server answers again (gives up after ~2 minutes). */
+export async function waitForServer(): Promise<boolean> {
+  await new Promise((r) => setTimeout(r, 2500));
+  for (let i = 0; i < 60; i++) {
+    try {
+      const r = await fetch("/ping", { cache: "no-store" });
+      if (r.ok) return true;
+    } catch {
+      /* still down */
+    }
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  return false;
+}
 
 export function errorMessage(e: unknown): string {
   if (e instanceof Error) return e.message;

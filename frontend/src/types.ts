@@ -597,6 +597,11 @@ export interface WantedSettings {
   min_hours_between_item_searches: number;
 }
 
+export interface BackupSettings {
+  interval_days: number;
+  retention_days: number;
+}
+
 export interface UiSettings {
   language: string;
   first_day_of_week: number;
@@ -616,6 +621,7 @@ export interface AllSettings {
   downloads: DownloadSettings;
   indexers: IndexerSettings;
   wanted: WantedSettings;
+  backup: BackupSettings;
   ui: UiSettings;
   auth: AuthSettings;
 }
@@ -623,6 +629,19 @@ export interface AllSettings {
 export type SettingsSection = keyof AllSettings;
 
 // ---------------------------------------------------------------- system
+export interface BackupInfo {
+  name: string;
+  kind: "manual" | "scheduled" | "migration" | "restore";
+  size: number;
+  created: string;
+}
+
+export interface BackupListing {
+  backups: BackupInfo[];
+  restore_pending: boolean;
+  folder: string;
+}
+
 export interface SystemStatus {
   app: string;
   version: string;
@@ -730,6 +749,7 @@ export interface QueueItem {
   updated: string | null;
   manual: boolean;
   import_progress: number | null; // % while files are copied into the library
+  stalled_since: string | null; // no progress since (stall timeout)
 }
 
 export interface HistoryRecord {

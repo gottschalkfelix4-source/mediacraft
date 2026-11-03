@@ -1,6 +1,7 @@
 """Notifications: webhook, Discord, Gotify, ntfy, Telegram + media server library refresh."""
 from __future__ import annotations
 
+import html
 import logging
 import threading
 from typing import Optional
@@ -50,7 +51,8 @@ def _send(n: Notification, event: str, message: str, payload: dict) -> None:
             c.post(f"{(s.get('url') or 'https://ntfy.sh').rstrip('/')}/{s['topic']}", content=message.encode(), headers=h).raise_for_status()
         elif n.kind == "telegram":
             c.post(f"https://api.telegram.org/bot{s['bot_token']}/sendMessage",
-                   json={"chat_id": s["chat_id"], "text": f"*{title}*\n{message}", "parse_mode": "Markdown"}).raise_for_status()
+                   json={"chat_id": s["chat_id"], "text": f"<b>{html.escape(title)}</b>\n{html.escape(message)}",
+                         "parse_mode": "HTML"}).raise_for_status()
         elif n.kind in ("jellyfin", "emby"):
             if event in ("import", "upgrade", "test"):
                 c.post(s["url"].rstrip("/") + "/Library/Refresh", headers={"X-Emby-Token": s["api_key"]}).raise_for_status()

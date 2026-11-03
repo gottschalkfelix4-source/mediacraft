@@ -65,6 +65,10 @@ DEFAULTS: dict[str, dict] = {
         "cutoff_unmet_search": False,
         "min_hours_between_item_searches": 24,
     },
+    "backup": {
+        "interval_days": 7,  # 0 = no scheduled backups
+        "retention_days": 28,  # scheduled/migration backups older than this are removed
+    },
     "ui": {
         "language": "de",
         "first_day_of_week": 1,

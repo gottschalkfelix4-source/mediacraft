@@ -2,15 +2,19 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import platform
 import queue as queue_mod
 import secrets
 import shutil
 import string
+import sys
+import threading
+import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
 from ... import config
@@ -19,6 +23,7 @@ from ...core.events import ring, subscribe, unsubscribe
 from ...core.scheduler import commands, scheduler
 from ...db import get_db
 from ...models import Movie, RootFolder, Series, utcnow
+from ...services import backup as backup_svc
 from ...services.commands import health_cache
 from ..deps import COOKIE, check_session, hash_password, make_session, require_auth, verify_password
 
@@ -146,8 +151,79 @@ async def events(request: Request):
                                                                                "X-Accel-Buffering": "no"})
 
 
+# ------------------------------------------------------------------------------------ restart / backups
+def _restart_later(delay: float = 1.0) -> None:
+    """Replace the process with a fresh one (same PID, so Docker/tini keep running it)."""
+    def run():
+        time.sleep(delay)
+        logging.getLogger("mediacraft").warning("Neustart…")
+        os.execv(sys.executable, [sys.executable, "-m", "app.main"])
+
+    threading.Thread(target=run, daemon=True, name="restart").start()
+
+
+@router.post("/system/restart")
+def restart():
+    _restart_later()
+    return {"ok": True}
+
+
+@router.get("/system/backups")
+def list_backups():
+    return {"backups": backup_svc.list_backups(), "restore_pending": backup_svc.restore_pending(),
+            "folder": str(backup_svc.backup_dir())}
+
+
+@router.post("/system/backups")
+def create_backup():
+    return backup_svc.create_backup("manual")
+
+
+@router.get("/system/backups/{name}")
+def download_backup(name: str):
+    try:
+        p = backup_svc.backup_file(name)
+    except (ValueError, FileNotFoundError):
+        raise HTTPException(404, "Backup nicht gefunden")
+    return FileResponse(p, media_type="application/zip", filename=p.name)
+
+
+@router.delete("/system/backups/{name}")
+def delete_backup(name: str):
+    try:
+        backup_svc.delete_backup(name)
+    except (ValueError, FileNotFoundError):
+        raise HTTPException(404, "Backup nicht gefunden")
+    return {"ok": True}
+
+
+@router.post("/system/backups/{name}/restore")
+def restore_backup(name: str, restart_now: bool = True):
+    try:
+        backup_svc.stage_restore_from(name)
+    except (ValueError, FileNotFoundError) as e:
+        raise HTTPException(400, str(e) or "Backup nicht gefunden")
+    if restart_now:
+        _restart_later()
+    return {"ok": True, "restarting": restart_now}
+
+
+@router.post("/system/backups-upload/restore")
+async def restore_upload(request: Request, restart_now: bool = True):
+    data = await request.body()
+    if len(data) > 2 * 1024 ** 3:
+        raise HTTPException(413, "Datei zu groß")
+    try:
+        backup_svc.stage_restore(data)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    if restart_now:
+        _restart_later()
+    return {"ok": True, "restarting": restart_now}
+
+
 # ------------------------------------------------------------------------------------ settings
-SECTIONS = ("metadata", "media", "downloads", "indexers", "wanted", "ui", "auth")
+SECTIONS = ("metadata", "media", "downloads", "indexers", "wanted", "backup", "ui", "auth")
 
 
 @router.get("/settings")

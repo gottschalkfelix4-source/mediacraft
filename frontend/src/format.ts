@@ -218,6 +218,7 @@ export const COMMAND_LABELS: Record<string, string> = {
   health_check: "Health-Check",
   disk_scan_all: "Festplatten-Scan",
   housekeeping: "Aufräumen",
+  backup: "Backup",
 };
 
 export function commandLabel(name: string): string {

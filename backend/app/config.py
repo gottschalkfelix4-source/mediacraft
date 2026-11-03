@@ -25,6 +25,38 @@ DISABLE_SCHEDULER = os.environ.get("MEDIACRAFT_DISABLE_SCHEDULER", "") == "1"
 _CONFIG_FILE = CONFIG_DIR / "config.json"
 
 
+def _apply_pending_restore() -> None:
+    """A restore staged via the UI replaces database + config.json before anything opens them."""
+    pending = CONFIG_DIR / "restore_pending.zip"
+    if not pending.exists():
+        return
+    import shutil
+    import zipfile
+
+    try:
+        from .services import backup
+
+        if DB_PATH.exists():
+            backup.create_backup("restore")  # the state we are about to overwrite
+        with zipfile.ZipFile(pending) as z:
+            tmp = DB_PATH.with_suffix(".restoring")
+            with z.open("mediacraft.db") as src, open(tmp, "wb") as dst:
+                shutil.copyfileobj(src, dst)
+            for suffix in ("-wal", "-shm"):
+                Path(str(DB_PATH) + suffix).unlink(missing_ok=True)
+            tmp.replace(DB_PATH)
+            if "config.json" in z.namelist():
+                _CONFIG_FILE.write_bytes(z.read("config.json"))
+        pending.unlink()
+        print("MediaCraft: Backup wiederhergestellt", flush=True)
+    except Exception as e:  # keep the old database, but don't retry forever
+        pending.replace(CONFIG_DIR / "restore_failed.zip")
+        print(f"MediaCraft: Wiederherstellung fehlgeschlagen: {e}", flush=True)
+
+
+_apply_pending_restore()
+
+
 def _load() -> dict:
     if _CONFIG_FILE.exists():
         try:

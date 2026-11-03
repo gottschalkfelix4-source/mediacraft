@@ -356,6 +356,7 @@ class QueueItem(Base):
     added: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     finished: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    stalled_since: Mapped[Optional[datetime]] = mapped_column(DateTime)  # no progress since (stall timeout)
 
 
 class History(Base):

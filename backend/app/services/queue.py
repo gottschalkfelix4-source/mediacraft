@@ -73,6 +73,7 @@ def _check_downloads(db: Session) -> dict:
                     _safe_remove(c, q, delete_data=True)
                     db.delete(q)
                 continue
+            prev_progress = q.progress or 0.0
             q.size = ci.size or q.size
             q.size_left = ci.size_left
             q.progress = ci.progress
@@ -99,12 +100,28 @@ def _check_downloads(db: Session) -> dict:
                         _safe_remove(c, q, delete_data=True)
                         db.delete(q)
                 continue
+            if _stalled(q, ci.status, ci.progress, prev_progress, float(cfg.get("stalled_timeout_hours") or 0)):
+                hours = float(cfg.get("stalled_timeout_hours") or 0)
+                handle_failed(db, q, f"Download hängt seit über {hours:g} h ohne Fortschritt", c)
+                stats["failed"] += 1
+                continue
             q.status = {"downloading": "downloading", "queued": "queued", "paused": "paused",
                         "warning": "warning"}.get(ci.status, "downloading")
     live_state["active_downloads"] = db.query(QueueItem.id).filter(QueueItem.status.in_(ACTIVE)).first() is not None
     if stats["checked"]:
         publish("queue.updated", {})
     return stats
+
+
+def _stalled(q: QueueItem, status: str, progress: float, prev_progress: float, timeout_hours: float) -> bool:
+    """Track how long a download made no progress; True once that exceeds the configured timeout."""
+    if status in ("paused", "queued") or progress > prev_progress + 0.001:
+        q.stalled_since = None  # waiting on purpose, or moving again
+        return False
+    if q.stalled_since is None:
+        q.stalled_since = utcnow()
+        return False
+    return timeout_hours > 0 and utcnow() - q.stalled_since >= timedelta(hours=timeout_hours)
 
 
 def _safe_remove(c: DownloadClient, q: QueueItem, delete_data: bool) -> None:
@@ -223,7 +240,7 @@ def queue_to_dict(db: Session, q: QueueItem, names: dict | None = None) -> dict:
         "size_left": q.size_left, "progress": q.progress, "eta_seconds": q.eta_seconds, "output_path": q.output_path,
         "messages": q.messages, "media_type": q.media_type, "movie_id": q.movie_id, "series_id": q.series_id,
         "episode_ids": q.episode_ids, "target": target, "added": iso(q.added), "updated": iso(q.updated),
-        "manual": q.manual, "import_progress": _import_pct(q.id),
+        "manual": q.manual, "import_progress": _import_pct(q.id), "stalled_since": iso(q.stalled_since),
     }
 
 
