@@ -37,6 +37,7 @@ export const SYSTEM_NAV = [
   { to: "/system/logs", label: "Logs" },
   { to: "/system/backup", label: "Backup" },
   { to: "/system/recyclebin", label: "Papierkorb" },
+  { to: "/system/updates", label: "Updates" },
   { to: "/system/libraryimport", label: "Bibliotheksimport" },
   { to: "/system/manualimport", label: "Manueller Import" },
 ];

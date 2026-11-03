@@ -68,7 +68,7 @@ export function StatusPage() {
         {s && (
           <KV
             items={[
-              ["Version", `${s.app} ${s.version}`],
+              ["Version", `${s.app} ${s.version}${s.build ? ` · Build ${s.build}` : ""}${s.commit ? ` · ${s.commit}` : ""}`],
               ["Gestartet", started ? `${fmtDateTime(started)} (Laufzeit ${fmtDuration((now.getTime() - started.getTime()) / 1000)})` : "–"],
               ["Python", s.python],
               ["Betriebssystem", s.os],

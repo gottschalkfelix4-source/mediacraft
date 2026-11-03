@@ -6,7 +6,10 @@ import os
 import secrets
 from pathlib import Path
 
-VERSION = "1.0.0"
+VERSION = os.environ.get("MEDIACRAFT_VERSION") or "1.1.0"
+BUILD = os.environ.get("MEDIACRAFT_BUILD") or ""  # CI run number
+COMMIT = os.environ.get("MEDIACRAFT_COMMIT") or ""  # git sha the image was built from
+BUILD_DATE = os.environ.get("MEDIACRAFT_BUILD_DATE") or ""
 APP_NAME = "MediaCraft"
 
 CONFIG_DIR = Path(os.environ.get("MEDIACRAFT_CONFIG_DIR", "/config" if os.name != "nt" else "./config")).resolve()

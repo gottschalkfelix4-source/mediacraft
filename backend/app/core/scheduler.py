@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import itertools
+import json
 import logging
 import queue
 import threading
@@ -12,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Callable, Optional
 
 from ..db import session_scope
-from ..models import TaskState, utcnow
+from ..models import CommandRecord, TaskState, utcnow
 from . import settings as settings_mod
 from .events import publish, live_state
 
@@ -52,10 +53,43 @@ class CommandQueue:
     def get(self, cid: int) -> Optional[dict]:
         return next((c for c in self.history if c["id"] == cid), None)
 
+    def load_history(self) -> None:
+        """Restore the last finished commands from the database and continue their numbering."""
+        try:
+            with session_scope() as db:
+                rows = db.query(CommandRecord).order_by(CommandRecord.id.desc()).limit(self.history.maxlen).all()
+                last = db.query(CommandRecord.id).order_by(CommandRecord.id.desc()).first()
+                items = [r.to_dict() for r in rows]
+        except Exception:
+            log.exception("Befehlshistorie konnte nicht geladen werden")
+            return
+        with self._lock:
+            self.history.extend(items)
+            if last:
+                self._ids = itertools.count(last[0] + 1)
+
+    @staticmethod
+    def _persist(cmd: dict) -> None:
+        result = cmd.get("result")
+        try:
+            json.dumps(result)
+        except (TypeError, ValueError):
+            result = str(result)
+        if isinstance(result, (list, dict)) and len(json.dumps(result)) > 4000:
+            result = {"gekürzt": json.dumps(result)[:4000]}
+        try:
+            with session_scope() as db:
+                db.merge(CommandRecord(id=cmd["id"], name=cmd["name"], params=cmd["params"], status=cmd["status"],
+                                       queued=cmd["queued"], started=cmd["started"], ended=cmd["ended"], result=result,
+                                       error=cmd["error"]))
+        except Exception as e:  # never break the worker because of the history
+            log.warning("Befehl %s nicht gespeichert: %s", cmd["id"], e)
+
     def start(self) -> None:
         if self._started:
             return
         self._started = True
+        self.load_history()
         for i in range(self._workers):
             threading.Thread(target=self._run, daemon=True, name=f"cmd-{i}").start()
 
@@ -78,6 +112,7 @@ class CommandQueue:
                 cmd["error"] = str(e)
                 log.error("Befehl %s fehlgeschlagen: %s\n%s", cmd["name"], e, traceback.format_exc())
             cmd["ended"] = datetime.now(timezone.utc).isoformat()
+            self._persist(cmd)
             publish("command.finished", {"id": cmd["id"], "name": cmd["name"], "status": cmd["status"],
                                          "error": cmd["error"]})
 

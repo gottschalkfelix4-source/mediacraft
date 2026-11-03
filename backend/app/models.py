@@ -496,6 +496,25 @@ class MetadataCache(Base):
     value: Mapped[Any] = mapped_column(JSON)
 
 
+class CommandRecord(Base):
+    """Finished commands, so the command list survives a restart."""
+    __tablename__ = "commands"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(64))
+    params: Mapped[dict] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String(16))
+    queued: Mapped[Optional[str]] = mapped_column(String(40))
+    started: Mapped[Optional[str]] = mapped_column(String(40))
+    ended: Mapped[Optional[str]] = mapped_column(String(40), index=True)
+    result: Mapped[Any] = mapped_column(JSON)
+    error: Mapped[Optional[str]] = mapped_column(Text)
+
+    def to_dict(self):
+        return {"id": self.id, "name": self.name, "params": self.params or {}, "status": self.status,
+                "queued": self.queued, "started": self.started, "ended": self.ended, "result": self.result,
+                "error": self.error}
+
+
 class TaskState(Base):
     __tablename__ = "task_state"
     name: Mapped[str] = mapped_column(String(64), primary_key=True)

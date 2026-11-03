@@ -3,9 +3,10 @@ import react from "@vitejs/plugin-react";
 
 const backend = "http://localhost:7979";
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [react()],
-  base: "/",
+  // relative asset URLs: the server injects <base href="{URL base}/"> so the UI also works under a sub path
+  base: command === "build" ? "./" : "/",
   build: { outDir: "dist", emptyOutDir: true, chunkSizeWarningLimit: 1200 },
   server: {
     port: 5173,
@@ -17,4 +18,4 @@ export default defineConfig({
       "/ping": { target: backend, changeOrigin: true },
     },
   },
-});
+}));

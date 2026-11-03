@@ -233,14 +233,16 @@ Stunden wieder verfügbar werden. Fehlgeschlagene Grabs zählen nicht, fehlgesch
 | `TZ` | `Europe/Berlin` | Zeitzone |
 | `MEDIACRAFT_PORT` | `7979` | Port |
 | `MEDIACRAFT_API_KEY` | generiert | festen API-Key setzen |
+| `MEDIACRAFT_URL_BASE` | leer | Unterpfad hinter einem Reverse-Proxy, z. B. `/mediacraft` |
 
 | Volume | Inhalt |
 |---|---|
 | `/config` | Datenbank (SQLite), Logs und `config.json` |
 | `/data` | Downloads und Bibliothek |
 
-Hinter einem Reverse-Proxy MediaCraft am besten unter einer eigenen Subdomain betreiben, z. B. `mediacraft.example.de`.
-Ein Unterpfad wird von der Oberfläche noch nicht unterstützt.
+Hinter einem Reverse-Proxy läuft MediaCraft unter einer eigenen Subdomain (z. B. `mediacraft.example.de`) oder unter
+einem Unterpfad: dafür `MEDIACRAFT_URL_BASE=/mediacraft` setzen und den Pfad im Proxy **nicht** abschneiden.
+Die Sonarr-/Radarr-APIs liegen dann unter `/mediacraft/sonarr` bzw. `/mediacraft/radarr`.
 
 Ohne API-Keys funktionieren Serien (TVmaze) und Anime (AniList) sofort. Für normale Filme einen kostenlosen
 [TMDB-Key](https://www.themoviedb.org/settings/api) unter *Einstellungen → Metadaten* eintragen.

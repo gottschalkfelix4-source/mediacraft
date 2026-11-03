@@ -1,12 +1,13 @@
 """FastAPI application entry point."""
 from __future__ import annotations
 
+import json
 import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import config
@@ -31,6 +32,13 @@ async def lifespan(_app: FastAPI):
     log.info("API-Key: %s…", config.API_KEY[:6])
     yield
     scheduler.stop()
+
+
+def _index_html(path) -> str:
+    """index.html with the URL base: assets are referenced relatively and resolve against <base href>."""
+    base = config.URL_BASE
+    inject = f'<base href="{base}/" /><script>window.__MC_BASE__ = {json.dumps(base)};</script>'
+    return path.read_text("utf-8").replace("<head>", "<head>" + inject, 1)
 
 
 def create_app() -> FastAPI:
@@ -77,15 +85,16 @@ def create_app() -> FastAPI:
     if (static / "index.html").exists():
         if (static / "assets").is_dir():
             app.mount("/assets", StaticFiles(directory=static / "assets"), name="assets")
+        index_html = _index_html(static / "index.html")
 
         @app.get("/{full_path:path}", include_in_schema=False)
         def spa(full_path: str):
             target = (static / full_path).resolve()
-            if full_path and target.is_file() and static.resolve() in target.parents:
+            if full_path and target.is_file() and static.resolve() in target.parents and target.name != "index.html":
                 return FileResponse(target)
             if full_path.startswith(("api/", "sonarr/", "radarr/")):
                 return JSONResponse({"detail": "Not found"}, status_code=404)
-            return FileResponse(static / "index.html")
+            return HTMLResponse(index_html, headers={"Cache-Control": "no-cache"})
 
     return app
 

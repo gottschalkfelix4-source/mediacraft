@@ -1,7 +1,15 @@
 // Typed API client for the MediaCraft backend (/api/v1).
 import type * as T from "./types";
 
-export const API_BASE = "/api/v1";
+declare global {
+  interface Window {
+    __MC_BASE__?: string;
+  }
+}
+
+/** URL base when MediaCraft runs under a sub path (e.g. "/mediacraft"), injected by the server. */
+export const URL_BASE = (window.__MC_BASE__ ?? "").replace(/\/+$/, "");
+export const API_BASE = `${URL_BASE}/api/v1`;
 
 export class ApiError extends Error {
   status: number;
@@ -95,6 +103,7 @@ export const api = {
   filesystem: (path = "", includeFiles = false) => get<T.FsListing>("/filesystem", { path, include_files: includeFiles || undefined }),
   diskspace: () => get<T.DiskSpace[]>("/diskspace"),
   restart: () => post<Ok>("/system/restart"),
+  updates: (force: boolean) => get<T.UpdateInfo>("/system/updates", { force: force || undefined }),
   backups: () => get<T.BackupListing>("/system/backups"),
   createBackup: () => post<T.BackupInfo>("/system/backups"),
   deleteBackup: (name: string) => del<Ok>(`/system/backups/${encodeURIComponent(name)}`),
@@ -292,7 +301,7 @@ export async function waitForServer(): Promise<boolean> {
   await new Promise((r) => setTimeout(r, 2500));
   for (let i = 0; i < 60; i++) {
     try {
-      const r = await fetch("/ping", { cache: "no-store" });
+      const r = await fetch(`${URL_BASE}/ping`, { cache: "no-store" });
       if (r.ok) return true;
     } catch {
       /* still down */

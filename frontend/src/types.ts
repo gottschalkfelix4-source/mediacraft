@@ -637,6 +637,23 @@ export interface AllSettings {
 export type SettingsSection = keyof AllSettings;
 
 // ---------------------------------------------------------------- system
+export interface ChangeEntry {
+  sha: string;
+  title: string;
+  body: string;
+  date: string | null;
+  url: string | null;
+}
+
+export interface UpdateInfo {
+  current: { version: string; build: string; commit: string | null; build_date: string; repo: string };
+  latest: ChangeEntry | null;
+  update_available: boolean | null;
+  changes: ChangeEntry[];
+  error: string | null;
+  checked: string;
+}
+
 export interface BackupInfo {
   name: string;
   kind: "manual" | "scheduled" | "migration" | "restore";
@@ -664,6 +681,9 @@ export interface SystemStatus {
   series: number;
   docker: boolean;
   tools?: { mediainfo: string | null; unpack: string[] };
+  build?: string;
+  commit?: string;
+  build_date?: string;
 }
 
 export interface HealthIssue {

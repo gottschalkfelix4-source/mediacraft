@@ -70,7 +70,8 @@ def logout(response: Response):
 @router.get("/system/status")
 def status(db: Session = Depends(get_db)):
     return {
-        "app": config.APP_NAME, "version": config.VERSION, "started": STARTED.isoformat() + "Z",
+        "app": config.APP_NAME, "version": config.VERSION, "build": config.BUILD, "commit": config.COMMIT[:7],
+        "build_date": config.BUILD_DATE, "started": STARTED.isoformat() + "Z",
         "python": platform.python_version(), "os": platform.platform(), "config_dir": str(config.CONFIG_DIR),
         "db": str(config.DB_PATH), "api_key": config.API_KEY, "url_base": config.URL_BASE,
         "movies": db.query(Movie).count(), "series": db.query(Series).count(),
@@ -83,6 +84,13 @@ def _tools() -> dict:
     from ...services import unpack
 
     return {"mediainfo": mediainfo.tool(), "unpack": [k for k, v in unpack.tools().items() if v]}
+
+
+@router.get("/system/updates")
+def updates(force: bool = False):
+    from ...services import updates as updates_svc
+
+    return updates_svc.check(force)
 
 
 @router.post("/system/apikey/regenerate")

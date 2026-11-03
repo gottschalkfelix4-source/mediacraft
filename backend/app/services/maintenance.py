@@ -252,9 +252,13 @@ def housekeeping(db: Session) -> dict:
     mc = db.query(MetadataCache).filter(MetadataCache.created < now - timedelta(days=7)).delete()
     qi = db.query(QueueItem).filter(QueueItem.status.in_(("failed", "removed")),
                                     QueueItem.updated < now - timedelta(days=7)).delete()
+    from ..models import CommandRecord
     from .delay import drop_stale
 
     pending = drop_stale(db)
+    keep_ids = [r[0] for r in db.query(CommandRecord.id).order_by(CommandRecord.id.desc()).limit(1000).all()]
+    if keep_ids:
+        db.query(CommandRecord).filter(CommandRecord.id < min(keep_ids)).delete()
     cfg = settings_mod.get(db, "media")
     days = int(cfg.get("recycle_bin_days") or 0)
     removed = recycle.empty(cfg, older_than_days=days) if days else 0

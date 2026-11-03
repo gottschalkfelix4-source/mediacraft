@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, Eye, EyeOff, RefreshCw, ShieldCheck, Link2 } from "lucide-react";
-import { api, errorMessage } from "../../api";
+import { api, errorMessage, URL_BASE } from "../../api";
 import { ErrorBox, Field, Loading, Select, TextInput, Toggle } from "../../components/ui";
 import { useConfirm } from "../../components/Modal";
 import { useToast } from "../../components/Toast";
@@ -50,7 +50,7 @@ export function GeneralSettings() {
   if (!auth.draft || !ui.draft) return <Loading />;
   const a = auth.draft as AuthSettings;
   const u = ui.draft as UiSettings;
-  const origin = window.location.origin;
+  const origin = window.location.origin + URL_BASE;
   const apiKey = status.data?.api_key ?? "";
   const pwMismatch = password !== password2;
   const dirty = auth.dirty || ui.dirty || password.length > 0;

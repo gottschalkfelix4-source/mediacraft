@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { App } from "./App";
 import { ToastProvider } from "./components/Toast";
 import { ConfirmProvider } from "./components/Modal";
-import { ApiError } from "./api";
+import { ApiError, URL_BASE } from "./api";
 import "./styles.css";
 
 const queryClient = new QueryClient({
@@ -21,7 +21,7 @@ const queryClient = new QueryClient({
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+      <BrowserRouter basename={URL_BASE || undefined}>
         <ToastProvider>
           <ConfirmProvider>
             <App />

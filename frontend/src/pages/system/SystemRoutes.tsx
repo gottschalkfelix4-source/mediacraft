@@ -8,6 +8,7 @@ import { LibraryImportPage } from "./LibraryImport";
 import { ManualImportPage } from "./ManualImport";
 import { BackupPage } from "./BackupPage";
 import { RecycleBinPage } from "./RecycleBin";
+import { UpdatesPage } from "./UpdatesPage";
 
 export function SystemRoutes() {
   return (
@@ -27,6 +28,7 @@ export function SystemRoutes() {
         <Route path="logs" element={<LogsPage />} />
         <Route path="backup" element={<BackupPage />} />
         <Route path="recyclebin" element={<RecycleBinPage />} />
+        <Route path="updates" element={<UpdatesPage />} />
         <Route path="libraryimport" element={<LibraryImportPage />} />
         <Route path="manualimport" element={<ManualImportPage />} />
         <Route path="*" element={<Navigate to="status" replace />} />

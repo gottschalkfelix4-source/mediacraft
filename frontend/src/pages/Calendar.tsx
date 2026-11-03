@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, CalendarCheck, Rss, Film, Tv, Copy } from "lucide-react";
-import { api } from "../api";
+import { api, API_BASE } from "../api";
 import { ErrorBox, PageHeader, Toggle, Spinner } from "../components/ui";
 import { useToast } from "../components/Toast";
 import { useNow, useSettings, useStored } from "../hooks";
@@ -76,14 +76,14 @@ export function CalendarPage() {
       ? `${MONTHS[anchor.getMonth()]} ${anchor.getFullYear()}`
       : `${String(days[0].getDate()).padStart(2, "0")}.${String(days[0].getMonth() + 1).padStart(2, "0")}. – ${String(days[6].getDate()).padStart(2, "0")}.${String(days[6].getMonth() + 1).padStart(2, "0")}.${days[6].getFullYear()}`;
 
-  const feedUrl = `${window.location.origin}/api/v1/feed/calendar.ics${status.data?.api_key ? `?apikey=${status.data.api_key}` : ""}`;
+  const feedUrl = `${window.location.origin}${API_BASE}/feed/calendar.ics${status.data?.api_key ? `?apikey=${status.data.api_key}` : ""}`;
   const today = isoLocalDay(now);
   const weekdayHeads = Array.from({ length: 7 }, (_, i) => WEEKDAYS[(firstDay + i) % 7]);
 
   return (
     <div className="page">
       <PageHeader title="Kalender">
-        <a className="btn" href="/api/v1/feed/calendar.ics" target="_blank" rel="noreferrer" title="iCal-Feed öffnen">
+        <a className="btn" href={`${API_BASE}/feed/calendar.ics`} target="_blank" rel="noreferrer" title="iCal-Feed öffnen">
           <Rss size={15} /> iCal
         </a>
         <button
