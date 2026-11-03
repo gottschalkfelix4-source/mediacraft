@@ -20,6 +20,7 @@ interface NavItem {
 export const SETTINGS_NAV = [
   { to: "/settings/media", label: "Medienverwaltung" },
   { to: "/settings/profiles", label: "Profile" },
+  { to: "/settings/qualities", label: "Qualitäten" },
   { to: "/settings/customformats", label: "Custom Formats" },
   { to: "/settings/indexers", label: "Indexer-Allgemein" },
   { to: "/settings/downloadclients", label: "Downloadclients" },
@@ -34,6 +35,7 @@ export const SYSTEM_NAV = [
   { to: "/system/tasks", label: "Aufgaben" },
   { to: "/system/logs", label: "Logs" },
   { to: "/system/backup", label: "Backup" },
+  { to: "/system/recyclebin", label: "Papierkorb" },
   { to: "/system/libraryimport", label: "Bibliotheksimport" },
   { to: "/system/manualimport", label: "Manueller Import" },
 ];

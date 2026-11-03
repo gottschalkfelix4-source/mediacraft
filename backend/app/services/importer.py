@@ -128,14 +128,10 @@ def transfer(src: str, dest: str, mode: str, use_hardlinks: bool = True) -> str:
 def remove_old(db: Session, f: MediaFile, cfg: dict) -> None:
     if not f.path or not os.path.exists(f.path):
         return
-    rb = cfg.get("recycle_bin")
+    from . import recycle
+
     try:
-        if rb:
-            target = os.path.join(rb, os.path.basename(os.path.dirname(f.path)), os.path.basename(f.path))
-            os.makedirs(os.path.dirname(target), exist_ok=True)
-            shutil.move(f.path, target)
-        else:
-            os.remove(f.path)
+        recycle.remove(f.path, cfg)
     except OSError as e:
         log.warning("Alte Datei konnte nicht entfernt werden: %s", e)
 

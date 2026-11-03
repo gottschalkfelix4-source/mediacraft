@@ -10,6 +10,7 @@ import { MetadataSettingsPage } from "./MetadataSettings";
 import { NotificationsSettings } from "./NotificationsSettings";
 import { AutomationSettings } from "./AutomationSettings";
 import { GeneralSettings } from "./GeneralSettings";
+import { QualityDefinitionsSettings } from "./QualityDefinitions";
 
 export function SettingsRoutes() {
   return (
@@ -26,6 +27,7 @@ export function SettingsRoutes() {
         <Route index element={<Navigate to="media" replace />} />
         <Route path="media" element={<MediaSettings />} />
         <Route path="profiles" element={<ProfilesSettings />} />
+        <Route path="qualities" element={<QualityDefinitionsSettings />} />
         <Route path="customformats" element={<CustomFormatsSettings />} />
         <Route path="indexers" element={<IndexerGeneralSettings />} />
         <Route path="downloadclients" element={<DownloadClientsSettings />} />

@@ -19,7 +19,8 @@ from ...metadata.manager import MetadataManager
 from ...models import (Blocklist, DownloadClient, Episode, History, MediaFile, Movie, PendingRelease, QualityProfile,
                        QueueItem, RootFolder, Series, iso, utcnow)
 from ...services import delay as delay_svc
-from ...services import importer, library, maintenance
+from ...core import settings as settings_mod
+from ...services import importer, library, maintenance, recycle
 from ...services import queue as queue_svc
 from ...services import search as search_svc
 from ...services.grab import GrabError, grab
@@ -191,7 +192,7 @@ def delete_movie_file(mid: int, db: Session = Depends(get_db)):
         m.file_id = None
         db.flush()
         try:
-            os.remove(f.path)
+            recycle.remove(f.path, settings_mod.get(db, "media"))
         except OSError:
             pass
         db.delete(f)
@@ -330,7 +331,7 @@ def delete_episode_file(fid: int, db: Session = Depends(get_db)):
         e.file_id = None
     db.flush()
     try:
-        os.remove(f.path)
+        recycle.remove(f.path, settings_mod.get(db, "media"))
     except OSError:
         pass
     db.add(History(event="deleted", media_type="series", series_id=f.series_id, episode_ids=[e.id for e in eps],
@@ -497,6 +498,46 @@ def retry_queue_import(qid: int, db: Session = Depends(get_db)):
         raise HTTPException(409, "Import läuft bereits")
     queue_svc.schedule_import(db, q)
     return {"ok": True, "queued": True, "messages": q.messages}
+
+
+@router.get("/recyclebin")
+def recycle_list(db: Session = Depends(get_db)):
+    cfg = settings_mod.get(db, "media")
+    return {"folder": cfg.get("recycle_bin") or None, "days": cfg.get("recycle_bin_days"),
+            "entries": recycle.entries(cfg)}
+
+
+@router.post("/recyclebin/restore")
+def recycle_restore(body: dict, db: Session = Depends(get_db)):
+    try:
+        original = recycle.restore(body.get("path", ""), settings_mod.get(db, "media"))
+    except (ValueError, FileNotFoundError, OSError) as e:
+        raise HTTPException(400, str(e))
+    norm = os.path.normpath(original)
+    for m in db.query(Movie).all():  # re-link the file to its movie/series
+        if m.path and (norm == os.path.normpath(m.path) or norm.startswith(os.path.normpath(m.path) + os.sep)):
+            maintenance.scan_movie(db, m)
+            break
+    else:
+        for s in db.query(Series).all():
+            if s.path and (norm == os.path.normpath(s.path) or norm.startswith(os.path.normpath(s.path) + os.sep)):
+                maintenance.scan_series(db, s)
+                break
+    return {"ok": True, "restored": original}
+
+
+@router.post("/recyclebin/delete")
+def recycle_delete(body: dict, db: Session = Depends(get_db)):
+    try:
+        recycle.delete(body.get("path", ""), settings_mod.get(db, "media"))
+    except (ValueError, FileNotFoundError, OSError) as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True}
+
+
+@router.post("/recyclebin/empty")
+def recycle_empty(db: Session = Depends(get_db)):
+    return {"removed": recycle.empty(settings_mod.get(db, "media"))}
 
 
 @router.get("/pending")

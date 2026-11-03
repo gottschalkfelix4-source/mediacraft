@@ -130,9 +130,18 @@ def rematch_movie(db: Session, movie: Movie, ids: dict, mgr: MetadataManager | N
     publish("movie.updated", {"id": movie.id})
 
 
+def _remove_folder(db: Session, path: str) -> None:
+    from . import recycle
+
+    try:
+        recycle.remove(path, settings_mod.get(db, "media"))
+    except OSError as e:
+        log.warning("Ordner %s konnte nicht gelöscht werden: %s", path, e)
+
+
 def delete_movie(db: Session, movie: Movie, delete_files: bool = False) -> None:
     if delete_files and movie.path and os.path.isdir(movie.path):
-        shutil.rmtree(movie.path, ignore_errors=True)
+        _remove_folder(db, movie.path)
     if movie.file_id:
         f = db.get(MediaFile, movie.file_id)
         movie.file_id = None
@@ -374,7 +383,7 @@ def rematch_series(db: Session, series: Series, ids: dict, mgr: MetadataManager 
 
 def delete_series(db: Session, series: Series, delete_files: bool = False) -> None:
     if delete_files and series.path and os.path.isdir(series.path):
-        shutil.rmtree(series.path, ignore_errors=True)
+        _remove_folder(db, series.path)
     for e in series.episodes:
         e.file_id = None
     db.flush()

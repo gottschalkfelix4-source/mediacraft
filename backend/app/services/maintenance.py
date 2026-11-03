@@ -10,6 +10,7 @@ from datetime import timedelta
 
 from sqlalchemy.orm import Session
 
+from . import recycle
 from ..core import customformats
 from ..core import settings as settings_mod
 from ..core.decision import map_episodes
@@ -221,18 +222,6 @@ def housekeeping(db: Session) -> dict:
 
     pending = drop_stale(db)
     cfg = settings_mod.get(db, "media")
-    rb, days = cfg.get("recycle_bin"), int(cfg.get("recycle_bin_days") or 0)
-    removed = 0
-    if rb and days and os.path.isdir(rb):
-        cutoff = time.time() - days * 86400
-        for root, dirs, files in os.walk(rb, topdown=False):
-            for f in files:
-                p = os.path.join(root, f)
-                if os.path.getmtime(p) < cutoff:
-                    os.remove(p)
-                    removed += 1
-            for d in dirs:
-                dp = os.path.join(root, d)
-                if not os.listdir(dp):
-                    os.rmdir(dp)
+    days = int(cfg.get("recycle_bin_days") or 0)
+    removed = recycle.empty(cfg, older_than_days=days) if days else 0
     return {"indexer_events": ev, "metadata_cache": mc, "queue": qi, "recycle_bin": removed, "pending": pending}

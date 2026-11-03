@@ -7,6 +7,7 @@ import { LogsPage } from "./LogsPage";
 import { LibraryImportPage } from "./LibraryImport";
 import { ManualImportPage } from "./ManualImport";
 import { BackupPage } from "./BackupPage";
+import { RecycleBinPage } from "./RecycleBin";
 
 export function SystemRoutes() {
   return (
@@ -25,6 +26,7 @@ export function SystemRoutes() {
         <Route path="tasks" element={<TasksPage />} />
         <Route path="logs" element={<LogsPage />} />
         <Route path="backup" element={<BackupPage />} />
+        <Route path="recyclebin" element={<RecycleBinPage />} />
         <Route path="libraryimport" element={<LibraryImportPage />} />
         <Route path="manualimport" element={<ManualImportPage />} />
         <Route path="*" element={<Navigate to="status" replace />} />

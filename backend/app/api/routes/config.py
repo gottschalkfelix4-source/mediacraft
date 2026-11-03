@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ...core import qualities
+from ...core import settings as settings_mod
 from ...db import get_db
 from ...downloadclients.base import ClientError
 from ...downloadclients.manager import CLIENT_CLASSES, CLIENT_DEFAULTS, get_client
@@ -26,6 +27,39 @@ router = APIRouter(prefix="/api/v1", dependencies=[Depends(require_auth)])
 def list_qualities():
     return [{"name": q.name, "source": q.source, "resolution": q.resolution, "rank": q.rank,
              "min_mb_min": q.min_mb_min, "max_mb_min": q.max_mb_min} for q in qualities.QUALITIES.values()]
+
+
+def quality_definitions(db: Session) -> list[dict]:
+    sizes = settings_mod.get(db, "media").get("quality_sizes") or {}
+    out = []
+    for q in sorted(qualities.QUALITIES.values(), key=lambda q: q.rank):
+        own = sizes.get(q.name) or {}
+        out.append({"name": q.name, "source": q.source, "resolution": q.resolution, "rank": q.rank,
+                    "min": own.get("min", q.min_mb_min), "max": own.get("max", q.max_mb_min),
+                    "default_min": q.min_mb_min, "default_max": q.max_mb_min, "custom": bool(own)})
+    return out
+
+
+@router.get("/qualitydefinitions")
+def get_quality_definitions(db: Session = Depends(get_db)):
+    return quality_definitions(db)
+
+
+@router.put("/qualitydefinitions")
+def put_quality_definitions(body: list[dict], db: Session = Depends(get_db)):
+    """Size limits in MB per minute; entries equal to the defaults are not stored."""
+    sizes = {}
+    for d in body:
+        q = qualities.QUALITIES.get(d.get("name"))
+        if not q:
+            continue
+        mn, mx = float(d.get("min") or 0), float(d.get("max") or 0)
+        if mx and mn > mx:
+            raise HTTPException(400, f"{q.name}: Minimum größer als Maximum")
+        if (mn, mx) != (q.min_mb_min, q.max_mb_min):
+            sizes[q.name] = {"min": mn, "max": mx}
+    settings_mod.replace_key(db, "media", "quality_sizes", sizes)
+    return quality_definitions(db)
 
 
 PROFILE_FIELDS = ("name", "items", "cutoff", "upgrade_allowed", "languages", "language_mode", "format_scores",

@@ -127,6 +127,23 @@ def update(db: Session, section: str, patch: dict[str, Any]) -> dict:
     return copy.deepcopy(new)
 
 
+def replace_key(db: Session, section: str, key: str, value: Any) -> dict:
+    """Set one key of a section wholesale (``update`` deep-merges and can't drop nested keys)."""
+    from ..models import Setting
+
+    current = get(db, section)
+    current[key] = value
+    row = db.get(Setting, section)
+    if row:
+        row.value = current
+    else:
+        db.add(Setting(key=section, value=current))
+    db.flush()
+    with _lock:
+        _cache[section] = current
+    return copy.deepcopy(current)
+
+
 def invalidate() -> None:
     with _lock:
         _cache.clear()

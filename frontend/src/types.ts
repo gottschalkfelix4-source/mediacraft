@@ -752,6 +752,32 @@ export interface PendingRelease {
   reason: string | null;
 }
 
+export interface QualityDefinition {
+  name: string;
+  source: string;
+  resolution: number;
+  rank: number;
+  min: number;
+  max: number;
+  default_min: number;
+  default_max: number;
+  custom: boolean;
+}
+
+export interface RecycleEntry {
+  path: string;
+  original: string | null;
+  deleted: string | null;
+  size: number;
+  folder: boolean;
+}
+
+export interface RecycleListing {
+  folder: string | null;
+  days: number;
+  entries: RecycleEntry[];
+}
+
 export interface BulkEdit {
   ids: number[];
   changes: Record<string, unknown>;
