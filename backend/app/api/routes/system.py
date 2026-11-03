@@ -232,7 +232,7 @@ async def restore_upload(request: Request, restart_now: bool = True):
 
 # ------------------------------------------------------------------------------------ settings
 AUTH_PUBLIC = ("method", "username", "local_bypass")
-SECTIONS = ("metadata", "media", "downloads", "indexers", "wanted", "backup", "ui", "auth")
+SECTIONS = ("metadata", "media", "downloads", "indexers", "wanted", "backup", "importlists", "ui", "auth")
 
 
 @router.get("/settings")

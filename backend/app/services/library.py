@@ -66,6 +66,7 @@ def apply_movie_meta(movie: Movie, meta: dict) -> None:
     movie.certification = meta.get("certification")
     movie.studio = meta.get("studio")
     movie.collection = meta.get("collection")
+    movie.collection_tmdb_id = meta.get("collection_id") or movie.collection_tmdb_id
     movie.original_language = meta.get("original_language")
     movie.metadata_sources = meta.get("metadata_sources") or [meta.get("provider")]
     movie.last_refresh = utcnow()
@@ -161,6 +162,7 @@ def movie_to_dict(m: Movie) -> dict:
         "in_cinemas": iso(m.in_cinemas), "digital_release": iso(m.digital_release),
         "physical_release": iso(m.physical_release), "genres": m.genres, "images": m.images, "ratings": m.ratings,
         "certification": m.certification, "studio": m.studio, "collection": m.collection,
+        "collection_tmdb_id": m.collection_tmdb_id,
         "original_language": m.original_language, "metadata_sources": m.metadata_sources, "monitored": m.monitored,
         "minimum_availability": m.minimum_availability, "quality_profile_id": m.quality_profile_id,
         "root_folder": m.root_folder, "path": m.path, "tags": m.tags, "added": iso(m.added),

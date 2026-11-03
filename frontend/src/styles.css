@@ -1466,3 +1466,13 @@ tr.rel-details td { background: var(--bg-elev-2); font-size: 12.5px; }
 .selection-bar .grow { flex: 1; }
 .w-check { width: 34px; }
 .row-selected td { background: var(--accent-soft, color-mix(in srgb, var(--accent) 12%, transparent)); }
+.collection-list { display: flex; flex-direction: column; gap: 12px; }
+.collection-card { padding: 14px; }
+.collection-head { display: flex; gap: 14px; }
+.collection-head .poster { width: 84px; flex: none; }
+.collection-head h3 { margin: 0 0 6px; }
+.collection-parts { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 4px 14px; margin-top: 12px; }
+.collection-part { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.collection-part > a, .collection-part > span:first-of-type { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.grow { flex: 1; min-width: 0; }

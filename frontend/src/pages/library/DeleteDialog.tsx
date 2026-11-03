@@ -5,8 +5,14 @@ import { Modal } from "../../components/Modal";
 import { Spinner } from "../../components/ui";
 import { useToast } from "../../components/Toast";
 
-export function DeleteDialog({ title, path, onConfirm, onClose }: { title: string; path: string; onConfirm: (deleteFiles: boolean) => Promise<void>; onClose: () => void }) {
+export function DeleteDialog({ title, path, onConfirm, onClose }: {
+  title: string;
+  path: string;
+  onConfirm: (deleteFiles: boolean, addExclusion: boolean) => Promise<void>;
+  onClose: () => void;
+}) {
   const [files, setFiles] = useState(false);
+  const [exclude, setExclude] = useState(false);
   const [busy, setBusy] = useState(false);
   const toast = useToast();
   return (
@@ -25,7 +31,7 @@ export function DeleteDialog({ title, path, onConfirm, onClose }: { title: strin
             onClick={async () => {
               setBusy(true);
               try {
-                await onConfirm(files);
+                await onConfirm(files, exclude);
               } catch (e) {
                 toast.error("Löschen fehlgeschlagen", errorMessage(e));
                 setBusy(false);
@@ -42,7 +48,10 @@ export function DeleteDialog({ title, path, onConfirm, onClose }: { title: strin
       <label className="checkbox mt">
         <input type="checkbox" checked={files} onChange={(e) => setFiles(e.target.checked)} /> <strong>Dateien löschen</strong> – den kompletten Ordner von der Festplatte entfernen
       </label>
-      {files && <div className="alert alert-error mt-sm">Achtung: Der Ordner und alle Dateien darin werden unwiderruflich gelöscht.</div>}
+      {files && <div className="alert alert-error mt-sm">Achtung: Der Ordner wird gelöscht (bzw. in den Papierkorb verschoben, falls einer eingerichtet ist).</div>}
+      <label className="checkbox mt-sm">
+        <input type="checkbox" checked={exclude} onChange={(e) => setExclude(e.target.checked)} /> Nicht erneut über Import-Listen oder Sammlungen hinzufügen
+      </label>
     </Modal>
   );
 }

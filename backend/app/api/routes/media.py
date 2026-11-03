@@ -145,6 +145,8 @@ def _bulk_update(db: Session, model, body: dict, fields: tuple) -> dict:
 def _bulk_delete(db: Session, model, body: dict, delete) -> dict:
     items = db.query(model).filter(model.id.in_(body.get("ids") or [])).all()
     for item in items:
+        if body.get("add_exclusion"):
+            _exclude(db, item, "movie" if model is Movie else "series")
         delete(db, item, bool(body.get("delete_files")))
     return {"deleted": len(items)}
 
@@ -178,9 +180,20 @@ def rematch_movie(mid: int, body: dict, db: Session = Depends(get_db)):
     return library.movie_to_dict(m)
 
 
+def _exclude(db: Session, item, media: str) -> None:
+    from ...services.importlists import add_exclusion
+
+    ids = {"tmdb": item.tmdb_id, "imdb": item.imdb_id, "tvdb": getattr(item, "tvdb_id", None)}
+    if any(ids.values()):
+        add_exclusion(db, media, ids, item.title, item.year)
+
+
 @router.delete("/movies/{mid}")
-def delete_movie(mid: int, delete_files: bool = False, db: Session = Depends(get_db)):
-    library.delete_movie(db, get_or_404(db, Movie, mid), delete_files)
+def delete_movie(mid: int, delete_files: bool = False, add_exclusion: bool = False, db: Session = Depends(get_db)):
+    m = get_or_404(db, Movie, mid)
+    if add_exclusion:
+        _exclude(db, m, "movie")
+    library.delete_movie(db, m, delete_files)
     return {"ok": True}
 
 
@@ -305,8 +318,11 @@ def series_monitoring(sid: int, body: dict, db: Session = Depends(get_db)):
 
 
 @router.delete("/series/{sid}")
-def delete_series(sid: int, delete_files: bool = False, db: Session = Depends(get_db)):
-    library.delete_series(db, get_or_404(db, Series, sid), delete_files)
+def delete_series(sid: int, delete_files: bool = False, add_exclusion: bool = False, db: Session = Depends(get_db)):
+    s = get_or_404(db, Series, sid)
+    if add_exclusion:
+        _exclude(db, s, "series")
+    library.delete_series(db, s, delete_files)
     return {"ok": True}
 
 

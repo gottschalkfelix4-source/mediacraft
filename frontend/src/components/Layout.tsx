@@ -24,6 +24,7 @@ export const SETTINGS_NAV = [
   { to: "/settings/customformats", label: "Custom Formats" },
   { to: "/settings/indexers", label: "Indexer-Allgemein" },
   { to: "/settings/downloadclients", label: "Downloadclients" },
+  { to: "/settings/importlists", label: "Import-Listen" },
   { to: "/settings/metadata", label: "Metadaten" },
   { to: "/settings/notifications", label: "Benachrichtigungen" },
   { to: "/settings/automation", label: "Gesucht / Automatik" },
@@ -60,7 +61,7 @@ export function Layout({ children, theme, onToggleTheme, onLogout, connected, au
 
   const nav: NavItem[] = [
     { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
-    { to: "/movies", label: "Filme", icon: Film, children: [{ to: "/movies/add", label: "Film hinzufügen" }] },
+    { to: "/movies", label: "Filme", icon: Film, children: [{ to: "/movies/add", label: "Film hinzufügen" }, { to: "/movies/collections", label: "Sammlungen" }] },
     { to: "/series", label: "Serien", icon: Tv, children: [{ to: "/series/add", label: "Serie hinzufügen" }] },
     { to: "/calendar", label: "Kalender", icon: CalendarDays },
     { to: "/activity", label: "Aktivität", icon: Activity, badge: activeQueue },

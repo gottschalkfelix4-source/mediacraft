@@ -11,6 +11,7 @@ import { NotificationsSettings } from "./NotificationsSettings";
 import { AutomationSettings } from "./AutomationSettings";
 import { GeneralSettings } from "./GeneralSettings";
 import { QualityDefinitionsSettings } from "./QualityDefinitions";
+import { ImportListsSettings } from "./ImportLists";
 
 export function SettingsRoutes() {
   return (
@@ -30,6 +31,7 @@ export function SettingsRoutes() {
         <Route path="qualities" element={<QualityDefinitionsSettings />} />
         <Route path="customformats" element={<CustomFormatsSettings />} />
         <Route path="indexers" element={<IndexerGeneralSettings />} />
+        <Route path="importlists" element={<ImportListsSettings />} />
         <Route path="downloadclients" element={<DownloadClientsSettings />} />
         <Route path="metadata" element={<MetadataSettingsPage />} />
         <Route path="notifications" element={<NotificationsSettings />} />

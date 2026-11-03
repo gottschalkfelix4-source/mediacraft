@@ -115,11 +115,12 @@ TASKS = [
     Task("health_check", "Health-Check", lambda c: 300, "health_check"),
     Task("disk_scan", "Festplatten-Scan", lambda c: 6 * 3600, "disk_scan_all"),
     Task("housekeeping", "Aufräumen", lambda c: 24 * 3600, "housekeeping"),
+    Task("import_lists", "Import-Listen", _cfg("importlists", "sync_interval_hours", 3600), "import_lists"),
     Task("backup", "Backup", _cfg("backup", "interval_days", 86400), "backup"),
 ]
 
 
-TASK_SECTIONS = ("downloads", "indexers", "metadata", "wanted", "backup")
+TASK_SECTIONS = ("downloads", "indexers", "metadata", "wanted", "backup", "importlists")
 
 
 class Scheduler:

@@ -185,8 +185,8 @@ export function MovieDetail() {
           title={`„${m.title}“ löschen`}
           path={m.path}
           onClose={() => setDialog(null)}
-          onConfirm={async (files) => {
-            await api.deleteMovie(m.id, files);
+          onConfirm={async (files, exclude) => {
+            await api.deleteMovie(m.id, files, exclude);
             toast.success("Film gelöscht", m.title);
             qc.invalidateQueries({ queryKey: ["movies"] });
             qc.removeQueries({ queryKey: ["movie", id] });

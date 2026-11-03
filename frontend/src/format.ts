@@ -220,6 +220,7 @@ export const COMMAND_LABELS: Record<string, string> = {
   housekeeping: "Aufräumen",
   backup: "Backup",
   process_pending: "Zurückgestellte Releases",
+  import_lists: "Import-Listen",
 };
 
 export function commandLabel(name: string): string {

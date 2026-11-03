@@ -11,6 +11,7 @@ import { Dashboard } from "./pages/Dashboard";
 import { MoviesPage } from "./pages/library/MoviesPage";
 import { AddMovie } from "./pages/library/AddMovie";
 import { MovieDetail } from "./pages/library/MovieDetail";
+import { CollectionsPage } from "./pages/library/Collections";
 import { SeriesPage } from "./pages/library/SeriesPage";
 import { AddSeries } from "./pages/library/AddSeries";
 import { SeriesDetail } from "./pages/library/SeriesDetail";
@@ -83,6 +84,7 @@ export function App() {
         <Route path="/" element={<Dashboard />} />
         <Route path="/movies" element={<MoviesPage />} />
         <Route path="/movies/add" element={<AddMovie />} />
+        <Route path="/movies/collections" element={<CollectionsPage />} />
         <Route path="/movies/:id" element={<MovieDetail />} />
         <Route path="/series" element={<SeriesPage />} />
         <Route path="/series/add" element={<AddSeries />} />

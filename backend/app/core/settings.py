@@ -65,6 +65,9 @@ DEFAULTS: dict[str, dict] = {
         "cutoff_unmet_search": False,
         "min_hours_between_item_searches": 24,
     },
+    "importlists": {
+        "sync_interval_hours": 6,  # 0 = only manually
+    },
     "backup": {
         "interval_days": 7,  # 0 = no scheduled backups
         "retention_days": 28,  # scheduled/migration backups older than this are removed

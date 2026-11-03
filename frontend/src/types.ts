@@ -623,6 +623,7 @@ export interface AllSettings {
   indexers: IndexerSettings;
   wanted: WantedSettings;
   backup: BackupSettings;
+  importlists: { sync_interval_hours: number };
   ui: UiSettings;
   auth: AuthSettings;
 }
@@ -776,6 +777,82 @@ export interface RecycleListing {
   folder: string | null;
   days: number;
   entries: RecycleEntry[];
+}
+
+export interface ImportListField {
+  key: string;
+  label: string;
+  help: string;
+}
+
+export interface ImportListSchema {
+  kind: string;
+  label: string;
+  media: ("movie" | "series")[];
+  fields: ImportListField[];
+}
+
+export interface ImportList {
+  id: number;
+  name: string;
+  kind: string;
+  enabled: boolean;
+  media_type: "movie" | "series";
+  settings: Record<string, string>;
+  quality_profile_id: number;
+  root_folder: string;
+  monitored: boolean;
+  monitor: string;
+  minimum_availability: string;
+  series_type: string;
+  search_on_add: boolean;
+  tags: number[];
+  last_sync: string | null;
+  last_error: string | null;
+  last_result: { items?: number; added?: number; existing?: number; excluded?: number; failed?: number };
+}
+
+export interface ImportListTest {
+  items: number;
+  new: string[];
+  new_count: number;
+  existing: number;
+  excluded: number;
+}
+
+export interface ImportListExclusion {
+  id: number;
+  media_type: "movie" | "series";
+  tmdb_id: number | null;
+  tvdb_id: number | null;
+  imdb_id: string | null;
+  title: string;
+  year: number | null;
+  added: string | null;
+}
+
+export interface CollectionPart {
+  media_type: "movie";
+  ids: { tmdb: number };
+  title: string;
+  year: number | null;
+  overview: string | null;
+  images: { poster?: string | null };
+  movie_id: number | null;
+  has_file: boolean;
+  monitored: boolean;
+  excluded: boolean;
+}
+
+export interface MovieCollection {
+  id: number;
+  name: string;
+  overview: string | null;
+  images: { poster?: string | null; fanart?: string | null };
+  parts: CollectionPart[];
+  in_library: number;
+  missing: number;
+  watch_list_id: number | null;
 }
 
 export interface BulkEdit {

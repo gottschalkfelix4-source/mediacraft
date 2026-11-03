@@ -182,8 +182,8 @@ export function SeriesDetail() {
           title={`„${s.title}“ löschen`}
           path={s.path}
           onClose={() => setDialog(null)}
-          onConfirm={async (files) => {
-            await api.deleteSeries(s.id, files);
+          onConfirm={async (files, exclude) => {
+            await api.deleteSeries(s.id, files, exclude);
             toast.success("Serie gelöscht", s.title);
             qc.removeQueries({ queryKey: ["series", id] });
             qc.invalidateQueries({ queryKey: ["series"] });

@@ -117,6 +117,45 @@ class PendingRelease(Base):
     reason: Mapped[Optional[str]] = mapped_column(String(512))
 
 
+class ImportList(Base):
+    """A list whose entries are added to the library automatically (TMDB, Trakt, IMDb, Plex, JSON URL)."""
+    __tablename__ = "import_lists"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(128))
+    kind: Mapped[str] = mapped_column(String(32))
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    media_type: Mapped[str] = mapped_column(String(16), default="movie")  # movie | series
+    settings: Mapped[dict] = mapped_column(JSON, default=dict)
+    quality_profile_id: Mapped[int] = mapped_column(Integer)
+    root_folder: Mapped[str] = mapped_column(String(1024))
+    monitored: Mapped[bool] = mapped_column(Boolean, default=True)
+    monitor: Mapped[str] = mapped_column(String(32), default="all")  # series: monitoring option
+    minimum_availability: Mapped[str] = mapped_column(String(16), default="released")
+    series_type: Mapped[str] = mapped_column(String(16), default="standard")
+    search_on_add: Mapped[bool] = mapped_column(Boolean, default=True)
+    tags: Mapped[list] = mapped_column(JSON, default=list)
+    last_sync: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    last_error: Mapped[Optional[str]] = mapped_column(Text)
+    last_result: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class ImportListExclusion(Base):
+    """Never (re-)add this title from import lists or collections."""
+    __tablename__ = "import_list_exclusions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    media_type: Mapped[str] = mapped_column(String(16))  # movie | series
+    tmdb_id: Mapped[Optional[int]] = mapped_column(Integer, index=True)
+    tvdb_id: Mapped[Optional[int]] = mapped_column(Integer, index=True)
+    imdb_id: Mapped[Optional[str]] = mapped_column(String(16), index=True)
+    title: Mapped[str] = mapped_column(String(512), default="")
+    year: Mapped[Optional[int]] = mapped_column(Integer)
+    added: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    def to_dict(self):
+        return {"id": self.id, "media_type": self.media_type, "tmdb_id": self.tmdb_id, "tvdb_id": self.tvdb_id,
+                "imdb_id": self.imdb_id, "title": self.title, "year": self.year, "added": iso(self.added)}
+
+
 class Movie(Base):
     __tablename__ = "movies"
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -140,6 +179,7 @@ class Movie(Base):
     certification: Mapped[Optional[str]] = mapped_column(String(16))
     studio: Mapped[Optional[str]] = mapped_column(String(256))
     collection: Mapped[Optional[str]] = mapped_column(String(256))
+    collection_tmdb_id: Mapped[Optional[int]] = mapped_column(Integer, index=True)
     original_language: Mapped[Optional[str]] = mapped_column(String(16))
     metadata_sources: Mapped[list] = mapped_column(JSON, default=list)
     monitored: Mapped[bool] = mapped_column(Boolean, default=True)

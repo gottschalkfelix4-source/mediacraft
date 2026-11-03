@@ -67,8 +67,8 @@ export function SelectionBar({ kind, ids, onClear }: { kind: MassKind; ids: Set<
           title={`${list.length} ${kind === "movie" ? "Filme" : "Serien"} löschen?`}
           path={`${list.length} Einträge`}
           onClose={() => setDel(false)}
-          onConfirm={async (deleteFiles) => {
-            const r = kind === "movie" ? await api.bulkDeleteMovies(list, deleteFiles) : await api.bulkDeleteSeries(list, deleteFiles);
+          onConfirm={async (deleteFiles, exclude) => {
+            const r = kind === "movie" ? await api.bulkDeleteMovies(list, deleteFiles, exclude) : await api.bulkDeleteSeries(list, deleteFiles, exclude);
             toast.success(`${r.deleted} Einträge gelöscht`);
             qc.invalidateQueries({ queryKey: [kind === "movie" ? "movies" : "series"] });
             setDel(false);

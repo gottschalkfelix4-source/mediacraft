@@ -109,6 +109,7 @@ class TMDBProvider(Provider):
             "certification": cert,
             "studio": (m.get("production_companies") or [{}])[0].get("name") if m.get("production_companies") else None,
             "collection": (m.get("belongs_to_collection") or {}).get("name"),
+            "collection_id": (m.get("belongs_to_collection") or {}).get("id"),
             "original_language": m.get("original_language"),
         }
 
@@ -188,3 +189,48 @@ class TMDBProvider(Provider):
                         "air_date": parse_date(ep.get("air_date")), "air_date_utc": None, "runtime": ep.get("runtime"),
                     })
         return result
+
+    # ------------------------------------------------------------------------------- lists
+    def _brief_movie(self, m: dict) -> dict:
+        return {"media_type": "movie", "ids": {"tmdb": m["id"]}, "title": m.get("title") or m.get("name"),
+                "year": year_of(m.get("release_date")), "overview": m.get("overview"),
+                "images": {"poster": self._img(m.get("poster_path"))}}
+
+    def _brief_tv(self, s: dict) -> dict:
+        return {"media_type": "series", "ids": {"tmdb": s["id"]}, "title": s.get("name") or s.get("title"),
+                "year": year_of(s.get("first_air_date")), "overview": s.get("overview"),
+                "images": {"poster": self._img(s.get("poster_path"))}}
+
+    def collection(self, cid: int) -> Optional[dict]:
+        c = self._get(f"/collection/{int(cid)}", ttl_hours=24)
+        if not c:
+            return None
+        parts = sorted((self._brief_movie(m) for m in c.get("parts") or []), key=lambda m: m["year"] or 9999)
+        return {"id": c["id"], "name": c.get("name"), "overview": c.get("overview"),
+                "images": {"poster": self._img(c.get("poster_path")), "fanart": self._img(c.get("backdrop_path"), "w1280")},
+                "parts": parts}
+
+    def list_items(self, list_id: str) -> list[dict]:
+        """A public TMDB list (v3 /list/{id}); movies and TV shows."""
+        out, page = [], 1
+        while page <= 20:
+            data = self._get(f"/list/{list_id}", {"page": page}, ttl_hours=1) or {}
+            for it in data.get("items") or []:
+                kind = it.get("media_type") or ("tv" if it.get("first_air_date") else "movie")
+                out.append(self._brief_tv(it) if kind == "tv" else self._brief_movie(it))
+            if page >= int(data.get("total_pages") or 1):
+                break
+            page += 1
+        return out
+
+    CHARTS = {"movie": ("popular", "top_rated", "upcoming", "now_playing", "trending"),
+              "series": ("popular", "top_rated", "on_the_air", "trending")}
+
+    def chart(self, media: str, chart: str, pages: int = 1) -> list[dict]:
+        kind = "movie" if media == "movie" else "tv"
+        out = []
+        for page in range(1, max(1, pages) + 1):
+            path = f"/trending/{kind}/week" if chart == "trending" else f"/{kind}/{chart}"
+            data = self._get(path, {"page": page}, ttl_hours=6) or {}
+            out += [self._brief_movie(m) if kind == "movie" else self._brief_tv(m) for m in data.get("results") or []]
+        return out
