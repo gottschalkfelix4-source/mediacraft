@@ -358,7 +358,6 @@ svg { flex-shrink: 0; vertical-align: -2px; }
 
 .content {
   padding: 22px 24px 60px;
-  max-width: 1680px;
   width: 100%;
 }
 
