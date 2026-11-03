@@ -9,12 +9,6 @@ RUN npm run build
 
 # ---------- runtime ----------
 FROM python:3.12-slim AS runtime
-ARG MEDIACRAFT_BUILD=""
-ARG MEDIACRAFT_COMMIT=""
-ARG MEDIACRAFT_BUILD_DATE=""
-ENV MEDIACRAFT_BUILD=$MEDIACRAFT_BUILD \
-    MEDIACRAFT_COMMIT=$MEDIACRAFT_COMMIT \
-    MEDIACRAFT_BUILD_DATE=$MEDIACRAFT_BUILD_DATE
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     MEDIACRAFT_CONFIG_DIR=/config \
@@ -41,6 +35,15 @@ COPY docker/entrypoint.sh /entrypoint.sh
 # strip Windows line endings in case the repo was checked out with CRLF
 RUN tr -d '\015' < /entrypoint.sh > /tmp/ep && mv /tmp/ep /entrypoint.sh \
     && chmod +x /entrypoint.sh && mkdir -p /config /data
+
+# build info changes on every CI run: keep it below all cached layers (apt/pip under arm64
+# emulation take ~3 minutes whenever they have to run again)
+ARG MEDIACRAFT_BUILD=""
+ARG MEDIACRAFT_COMMIT=""
+ARG MEDIACRAFT_BUILD_DATE=""
+ENV MEDIACRAFT_BUILD=$MEDIACRAFT_BUILD \
+    MEDIACRAFT_COMMIT=$MEDIACRAFT_COMMIT \
+    MEDIACRAFT_BUILD_DATE=$MEDIACRAFT_BUILD_DATE
 
 VOLUME ["/config"]
 EXPOSE 7979
