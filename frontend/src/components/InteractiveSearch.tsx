@@ -2,22 +2,11 @@ import { Fragment, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, XCircle, Clock, Download, AlertTriangle, ChevronDown, ChevronRight, ExternalLink, RefreshCw, Magnet, Newspaper } from "lucide-react";
 import { api, errorMessage } from "../api";
-import { fmtAge, fmtSize, langLabel } from "../format";
+import { fmtAge, fmtSize, langLabel, reasonKey } from "../format";
 import type { Decision } from "../types";
 import { Modal, useConfirm } from "./Modal";
 import { useToast } from "./Toast";
 import { Badge, Empty, ErrorBox, Spinner, Toggle } from "./ui";
-
-/** Rejection text without the release specific details, so equal reasons group together. */
-export function reasonKey(r: string): string {
-  return r
-    .replace(/^S\d+E\d+:\s*/, "")
-    .replace(/'[^']*'|„[^“]*“|"[^"]*"|\([^)]*\)/g, "…")
-    .replace(/-?\d+([.,]\d+)?(\s?(MB\/min|MB|GB|min|Tage|%))?/g, "#")
-    .replace(/^Qualität \S+/, "Qualität …")
-    .replace(/:\s.*$/, "")
-    .trim();
-}
 
 type SortKey = "rank" | "title" | "indexer" | "age" | "size" | "seeders" | "quality" | "score";
 

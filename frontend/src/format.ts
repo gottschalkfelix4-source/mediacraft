@@ -239,3 +239,14 @@ export function providerLabel(p: string): string {
 export function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
 }
+
+/** Rejection text without the release specific details, so equal reasons group together. */
+export function reasonKey(r: string): string {
+  return r
+    .replace(/^S\d+E\d+:\s*/, "")
+    .replace(/'[^']*'|„[^“]*“|"[^"]*"|\([^)]*\)/g, "…")
+    .replace(/-?\d+([.,]\d+)?(\s?(MB\/min|MB|GB|min|Tage|%))?/g, "#")
+    .replace(/^Qualität \S+/, "Qualität …")
+    .replace(/:\s.*$/, "")
+    .trim();
+}

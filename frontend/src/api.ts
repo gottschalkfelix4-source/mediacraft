@@ -8,7 +8,7 @@ declare global {
 }
 
 /** URL base when MediaCraft runs under a sub path (e.g. "/mediacraft"), injected by the server. */
-export const URL_BASE = (window.__MC_BASE__ ?? "").replace(/\/+$/, "");
+export const URL_BASE = (typeof window !== "undefined" ? (window.__MC_BASE__ ?? "") : "").replace(/\/+$/, "");
 export const API_BASE = `${URL_BASE}/api/v1`;
 
 export class ApiError extends Error {
