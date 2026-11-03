@@ -22,3 +22,13 @@ def test_app_under_url_base(tmp_root, monkeypatch):
     assert c.get("/mc/sonarr/api/v3/system/status").json()["appName"] == "Sonarr"
     assert c.get("/mc/ping").json() == {"status": "ok"}
     assert c.get("/mc/api/v1/nope").status_code == 404
+
+
+def test_stats_endpoint():
+    from app import config
+    from app.main import app
+
+    c = TestClient(app, headers={"X-Api-Key": config.API_KEY})
+    s = c.get("/api/v1/stats?weeks=4").json()
+    assert {"library", "qualities", "languages", "weeks", "indexers", "root_folders"} <= set(s)
+    assert len(s["weeks"]) == 5

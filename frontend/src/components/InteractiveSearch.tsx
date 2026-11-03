@@ -8,6 +8,17 @@ import { Modal, useConfirm } from "./Modal";
 import { useToast } from "./Toast";
 import { Badge, Empty, ErrorBox, Spinner, Toggle } from "./ui";
 
+/** Rejection text without the release specific details, so equal reasons group together. */
+export function reasonKey(r: string): string {
+  return r
+    .replace(/^S\d+E\d+:\s*/, "")
+    .replace(/'[^']*'|„[^“]*“|"[^"]*"|\([^)]*\)/g, "…")
+    .replace(/-?\d+([.,]\d+)?(\s?(MB\/min|MB|GB|min|Tage|%))?/g, "#")
+    .replace(/^Qualität \S+/, "Qualität …")
+    .replace(/:\s.*$/, "")
+    .trim();
+}
+
 type SortKey = "rank" | "title" | "indexer" | "age" | "size" | "seeders" | "quality" | "score";
 
 export function InteractiveSearch({ title, queryKey, fetcher, onClose }: {
@@ -27,6 +38,7 @@ export function InteractiveSearch({ title, queryKey, fetcher, onClose }: {
   const [showRejected, setShowRejected] = useState(true);
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "rank", dir: 1 });
   const [filter, setFilter] = useState("");
+  const [reason, setReason] = useState("");
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [grabbing, setGrabbing] = useState<string | null>(null);
   const [grabbed, setGrabbed] = useState<Set<string>>(new Set());
@@ -37,6 +49,8 @@ export function InteractiveSearch({ title, queryKey, fetcher, onClose }: {
   const rows = useMemo(() => {
     let list = (data?.releases ?? []).map((d, i) => ({ d, i }));
     if (!showRejected) list = list.filter(({ d }) => d.approved);
+    if (reason === "__approved") list = list.filter(({ d }) => d.approved);
+    else if (reason) list = list.filter(({ d }) => d.rejections.some((r) => reasonKey(r) === reason));
     if (filter) {
       const f = filter.toLowerCase();
       list = list.filter(({ d }) => d.release.title.toLowerCase().includes(f) || d.release.indexer.toLowerCase().includes(f));
@@ -58,7 +72,13 @@ export function InteractiveSearch({ title, queryKey, fetcher, onClose }: {
       const vb = val(b.d, b.i);
       return (va < vb ? -1 : va > vb ? 1 : 0) * sort.dir;
     });
-  }, [data, showRejected, filter, sort]);
+  }, [data, showRejected, filter, reason, sort]);
+
+  const reasons = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const d of data?.releases ?? []) for (const k of new Set(d.rejections.map(reasonKey))) counts.set(k, (counts.get(k) ?? 0) + 1);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  }, [data]);
 
   const key = (d: Decision) => `${d.release.indexer_id}|${d.release.guid}`;
 
@@ -116,6 +136,17 @@ export function InteractiveSearch({ title, queryKey, fetcher, onClose }: {
       <div className="toolbar">
         <input className="input" placeholder="Filtern…" value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Releases filtern" />
         <Toggle checked={showRejected} onChange={setShowRejected} label="Abgelehnte anzeigen" />
+        {reasons.length > 0 && (
+          <select className="input select" value={reason} onChange={(e) => setReason(e.target.value)} aria-label="Nach Ablehnungsgrund filtern">
+            <option value="">Alle Gründe</option>
+            <option value="__approved">Nur akzeptierte</option>
+            {reasons.map(([k, n]) => (
+              <option key={k} value={k}>
+                {k} ({n})
+              </option>
+            ))}
+          </select>
+        )}
         <span className="muted">
           {data ? `${data.releases.length} Releases · ${approvedCount} akzeptiert · ${data.indexers} Indexer` : ""}
         </span>

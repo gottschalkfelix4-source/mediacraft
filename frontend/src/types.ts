@@ -882,6 +882,34 @@ export interface MovieCollection {
   watch_list_id: number | null;
 }
 
+export interface StatsBucket {
+  name: string;
+  count: number;
+  size: number;
+}
+
+export interface StatsData {
+  library: {
+    movies: number;
+    movies_with_file: number;
+    series: number;
+    episodes: number;
+    episodes_with_file: number;
+    movie_size: number;
+    episode_size: number;
+    total_size: number;
+    files: number;
+  };
+  qualities: StatsBucket[];
+  languages: StatsBucket[];
+  codecs: StatsBucket[];
+  resolutions: StatsBucket[];
+  release_groups: StatsBucket[];
+  root_folders: { path: string; media_type: string; library_size: number; total: number | null; free: number | null }[];
+  weeks: { week: string; grabs: number; imports: number; failed: number }[];
+  indexers: { name: string; grabs: number; queries: number; failed: number }[];
+}
+
 export interface BulkEdit {
   ids: number[];
   changes: Record<string, unknown>;

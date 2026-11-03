@@ -294,6 +294,7 @@ export const api = {
   deleteBlocklist: (id: number) => del<Ok>(`/blocklist/${id}`),
   clearBlocklist: () => del<{ deleted: number }>("/blocklist"),
   dashboard: () => get<T.Dashboard>("/dashboard"),
+  stats: (weeks: number) => get<T.StatsData>("/stats", { weeks }),
 };
 
 /** After a restart: wait until the server answers again (gives up after ~2 minutes). */

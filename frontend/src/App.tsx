@@ -18,6 +18,7 @@ import { SeriesDetail } from "./pages/library/SeriesDetail";
 import { CalendarPage } from "./pages/Calendar";
 import { ActivityPage } from "./pages/Activity";
 import { WantedPage } from "./pages/Wanted";
+import { StatsPage } from "./pages/Stats";
 import { IndexersPage } from "./pages/indexers/IndexersPage";
 import { IndexerUsagePage } from "./pages/indexers/IndexerUsage";
 import { SettingsRoutes } from "./pages/settings/SettingsRoutes";
@@ -94,6 +95,7 @@ export function App() {
         <Route path="/activity/:tab" element={<ActivityPage />} />
         <Route path="/wanted" element={<WantedPage />} />
         <Route path="/wanted/:tab" element={<WantedPage />} />
+        <Route path="/stats" element={<StatsPage />} />
         <Route path="/indexers" element={<IndexersPage />} />
         <Route path="/indexers/:id" element={<IndexerUsagePage />} />
         <Route path="/settings/*" element={<SettingsRoutes />} />

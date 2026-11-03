@@ -48,13 +48,14 @@ def create_app() -> FastAPI:
 
     from .api.compat import VERSIONS, radarr_router, sonarr_router
     from .api.routes import config as config_routes
-    from .api.routes import lists, media, system
+    from .api.routes import lists, media, stats, system
 
     app.include_router(system.public)
     app.include_router(system.router)
     app.include_router(config_routes.router)
     app.include_router(media.router)
     app.include_router(lists.router)
+    app.include_router(stats.router)
     app.include_router(sonarr_router)
     app.include_router(radarr_router)
 

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
-  LayoutDashboard, Film, Tv, CalendarDays, Activity, SearchX, Rss, Settings, Server, Menu, X, Search, Sun, Moon, LogOut, Wifi, WifiOff,
+  LayoutDashboard, BarChart3, Film, Tv, Plus, ArrowRight, CalendarDays, Activity, SearchX, Rss, Settings, Server, Menu, X, Search, Sun, Moon, LogOut, Wifi, WifiOff,
 } from "lucide-react";
 import { api } from "../api";
 import { useMovies, useSeriesList } from "../hooks";
@@ -68,6 +68,7 @@ export function Layout({ children, theme, onToggleTheme, onLogout, connected, au
     { to: "/activity", label: "Aktivität", icon: Activity, badge: activeQueue },
     { to: "/wanted", label: "Gesucht", icon: SearchX },
     { to: "/indexers", label: "Indexer", icon: Rss },
+    { to: "/stats", label: "Statistik", icon: BarChart3 },
     { to: "/settings", label: "Einstellungen", icon: Settings, children: SETTINGS_NAV },
     { to: "/system", label: "System", icon: Server, children: SYSTEM_NAV, badge: healthIssues || undefined },
   ];
@@ -138,6 +139,31 @@ export function Layout({ children, theme, onToggleTheme, onLogout, connected, au
   );
 }
 
+// pages reachable from the global search ("Seiten" section)
+const PAGES: { to: string; label: string }[] = [
+  { to: "/", label: "Dashboard" },
+  { to: "/movies", label: "Filme" },
+  { to: "/movies/add", label: "Film hinzufügen" },
+  { to: "/movies/collections", label: "Sammlungen" },
+  { to: "/series", label: "Serien" },
+  { to: "/series/add", label: "Serie hinzufügen" },
+  { to: "/calendar", label: "Kalender" },
+  { to: "/activity", label: "Aktivität / Warteschlange" },
+  { to: "/activity/pending", label: "Zurückgestellte Releases" },
+  { to: "/activity/history", label: "Verlauf" },
+  { to: "/activity/blocklist", label: "Blocklist" },
+  { to: "/wanted", label: "Gesucht" },
+  { to: "/indexers", label: "Indexer" },
+  { to: "/stats", label: "Statistik" },
+  ...SETTINGS_NAV.map((n) => ({ to: n.to, label: `Einstellungen → ${n.label}` })),
+  ...SYSTEM_NAV.map((n) => ({ to: n.to, label: `System → ${n.label}` })),
+];
+
+type SearchResult =
+  | { kind: "movie" | "series"; id: number; title: string; year: number | null; poster?: string | null }
+  | { kind: "page"; to: string; title: string }
+  | { kind: "add"; to: string; title: string; media: "movie" | "series" };
+
 function GlobalSearch() {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
@@ -147,7 +173,7 @@ function GlobalSearch() {
   const nav = useNavigate();
   const ref = useRef<HTMLInputElement>(null);
 
-  const results = useMemo(() => {
+  const results = useMemo((): SearchResult[] => {
     const term = q.trim().toLowerCase();
     if (!term) return [];
     const match = (t: string, o: string | null, alts: string[]) =>
@@ -160,7 +186,15 @@ function GlobalSearch() {
       const bs = b.title.toLowerCase().startsWith(term) ? 0 : 1;
       return as - bs || a.title.localeCompare(b.title, "de");
     });
-    return all.slice(0, 10);
+    const pages: SearchResult[] = PAGES.filter((pg) => pg.label.toLowerCase().includes(term))
+      .slice(0, 4)
+      .map((pg) => ({ kind: "page", to: pg.to, title: pg.label }));
+    const enc = encodeURIComponent(q.trim());
+    const add: SearchResult[] = [
+      { kind: "add", media: "movie", to: `/movies/add?term=${enc}`, title: `„${q.trim()}“ als Film suchen und hinzufügen` },
+      { kind: "add", media: "series", to: `/series/add?term=${enc}`, title: `„${q.trim()}“ als Serie suchen und hinzufügen` },
+    ];
+    return [...all.slice(0, 8), ...pages, ...add];
   }, [q, movies, series]);
 
   useEffect(() => {
@@ -174,8 +208,8 @@ function GlobalSearch() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const go = (r: (typeof results)[number]) => {
-    nav(r.kind === "movie" ? `/movies/${r.id}` : `/series/${r.id}`);
+  const go = (r: SearchResult) => {
+    nav("id" in r ? `/${r.kind === "movie" ? "movies" : "series"}/${r.id}` : r.to);
     setQ("");
     setOpen(false);
     ref.current?.blur();
@@ -187,7 +221,7 @@ function GlobalSearch() {
       <input
         ref={ref}
         className="gs-input"
-        placeholder="Bibliothek durchsuchen… ( / )"
+        placeholder="Suchen… (Strg+K oder /)"
         value={q}
         aria-label="Bibliothek durchsuchen"
         onChange={(e) => {
@@ -214,14 +248,31 @@ function GlobalSearch() {
       />
       {open && q.trim() && (
         <div className="gs-results" role="listbox">
-          {results.length === 0 && <div className="gs-empty">Nichts in der Bibliothek gefunden</div>}
+          {!results.some((r) => r.kind === "movie" || r.kind === "series") && <div className="gs-empty">Nichts in der Bibliothek gefunden</div>}
           {results.map((r, i) => (
-            <button key={`${r.kind}-${r.id}`} className={`gs-item ${i === sel ? "sel" : ""}`} onMouseDown={(e) => e.preventDefault()} onClick={() => go(r)} role="option" aria-selected={i === sel}>
-              <Poster src={r.poster} title={r.title} kind={r.kind} className="poster-xs" />
-              <span className="gs-title">
-                {r.title} {r.year ? <span className="muted">({r.year})</span> : null}
-              </span>
-              <span className="gs-kind">{r.kind === "movie" ? <Film size={13} /> : <Tv size={13} />}</span>
+            <button
+              key={"id" in r ? `${r.kind}-${r.id}` : `${r.kind}-${r.to}`}
+              className={`gs-item ${i === sel ? "sel" : ""} ${r.kind === "page" || r.kind === "add" ? "gs-action" : ""}`}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => go(r)}
+              role="option"
+              aria-selected={i === sel}
+            >
+              {r.kind === "movie" || r.kind === "series" ? (
+                <>
+                  <Poster src={r.poster} title={r.title} kind={r.kind} className="poster-xs" />
+                  <span className="gs-title">
+                    {r.title} {r.year ? <span className="muted">({r.year})</span> : null}
+                  </span>
+                  <span className="gs-kind">{r.kind === "movie" ? <Film size={13} /> : <Tv size={13} />}</span>
+                </>
+              ) : (
+                <>
+                  <span className="gs-action-icon">{r.kind === "add" ? <Plus size={15} /> : <ArrowRight size={15} />}</span>
+                  <span className="gs-title">{r.title}</span>
+                  {r.kind === "add" && <span className="gs-kind">{r.media === "movie" ? <Film size={13} /> : <Tv size={13} />}</span>}
+                </>
+              )}
             </button>
           ))}
         </div>
