@@ -62,7 +62,7 @@ def rss_sync(db: Session) -> dict:
             if not cats:
                 continue
             try:
-                res = newznab.search(s, idx, {"t": "search", "cat": ",".join(map(str, cats))}, kind="rss")
+                res = newznab.search(s, idx, {"t": "search", "cat": ",".join(map(str, cats)), "limit": 100}, kind="rss")
                 stats["indexers"] += 1
                 releases.extend(res)
             except (LimitReached, IndexerError) as e:

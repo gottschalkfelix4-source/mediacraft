@@ -138,3 +138,48 @@ def test_probe_marks_indexers_without_apilimits(monkeypatch):
         assert (rl["supported"], rl["grab_current"], rl["grab_max"], rl["grab_oldest"]) == (True, 12, 400, "2020-04-30T17:54:30")
         # the probe itself is a query (one API call), never a grab
         assert usage.state(s, idx, "query").used == 8 and usage.state(s, idx, "grab").used == 12
+
+
+def _feed(n: int, start: int = 0, total: int | None = None) -> bytes:
+    resp = f'<newznab:response offset="{start}" total="{total}"/>' if total is not None else ""
+    items = "".join(f"<item><title>Show.S01E{i:02d}.German.1080p.WEB.x264-GRP</title><guid>g{i}</guid>"
+                    f'<enclosure url="http://tm.invalid/nzb/{i}" length="1000"/></item>' for i in range(start, start + n))
+    return (f'<?xml version="1.0"?><rss xmlns:newznab="http://www.newznab.com/DTD/2010/feeds/attributes/">'
+            f"<channel>{resp}{items}</channel></rss>").encode()
+
+
+def test_search_pages_uses_caps_max_and_follows_offset(monkeypatch):
+    from app.indexers import newznab
+
+    calls = []
+
+    def fake(db, i, params, kind, manual):
+        calls.append(dict(params))
+        off = params.get("offset", 0)
+        return _feed(min(params["limit"], 1150 - off), off, total=1150), 5
+
+    with session_scope() as s:
+        idx = _indexer(s, limit_window_hours=24, capabilities={"limits": {"max": 500, "default": 100}})
+        monkeypatch.setattr(newznab, "_request", fake)
+        res = newznab.search_pages(s, idx, {"t": "tvsearch", "season": 1}, max_pages=3)
+        assert len(res) == 1150
+        assert [(c["limit"], c.get("offset")) for c in calls] == [(500, None), (500, 500), (500, 1000)]
+
+        # without <newznab:response total> a short page ends the paging
+        calls.clear()
+        monkeypatch.setattr(newznab, "_request", lambda db, i, params, kind, manual: (calls.append(params) or _feed(120), 5))
+        assert len(newznab.search_pages(s, idx, {"t": "tvsearch", "season": 1}, max_pages=3)) == 120
+        assert len(calls) == 1
+
+        # a limit hit after the first page keeps what was found
+        def limited(db, i, params, kind, manual):
+            if params.get("offset"):
+                raise usage.LimitReached("TreasureMaps", "query", None)
+            return _feed(500, 0, total=2000), 5
+
+        monkeypatch.setattr(newznab, "_request", limited)
+        assert len(newznab.search_pages(s, idx, {"t": "tvsearch", "season": 1}, max_pages=3)) == 500
+
+        # indexers without caps keep the newznab default of 100
+        idx.capabilities = {}
+        assert newznab.page_size(idx) == 100

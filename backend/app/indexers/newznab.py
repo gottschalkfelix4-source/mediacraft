@@ -256,9 +256,42 @@ def _parse_items(root, idx: Indexer) -> list[Release]:
     return out
 
 
+def page_size(idx: Indexer) -> int:
+    """Results per request: the indexer's advertised maximum (caps ``<limits max>``), else 100."""
+    mx = ((idx.capabilities or {}).get("limits") or {}).get("max")
+    return min(max(mx, 100), 1000) if isinstance(mx, int) and mx > 0 else 100
+
+
 def search(db: Session, idx: Indexer, params: dict, *, kind: str = "query", manual: bool = False) -> list[Release]:
     """Run a single newznab query (``params`` incl. ``t``) and return releases."""
-    params = {"extended": 1, "limit": 100, **params}
+    return _search(db, idx, params, kind, manual)[0]
+
+
+def search_pages(db: Session, idx: Indexer, params: dict, *, max_pages: int, kind: str = "query",
+                 manual: bool = False) -> list[Release]:
+    """Like :func:`search`, but follows ``offset`` while pages come back full (season packs of long
+    running shows are often far behind hundreds of single episodes). Each page is one API call; a
+    limit hit after the first page keeps what was found so far."""
+    size = page_size(idx)
+    out: list[Release] = []
+    for page in range(max(max_pages, 1)):
+        try:
+            res, total = _search(db, idx, {"limit": size, **params, "offset": page * size}, kind, manual)
+        except usage.LimitReached:
+            if page == 0:
+                raise
+            break
+        out.extend(res)
+        more = (total > (page + 1) * size) if total is not None else len(res) >= size
+        if not res or not more:
+            break
+    return out
+
+
+def _search(db: Session, idx: Indexer, params: dict, kind: str, manual: bool) -> tuple[list[Release], Optional[int]]:
+    params = {"extended": 1, "limit": page_size(idx), **params}
+    if not params.get("offset"):
+        params.pop("offset", None)
     content, elapsed = _request(db, idx, params, kind, manual)
     try:
         root = ET.fromstring(content)
@@ -275,7 +308,8 @@ def search(db: Session, idx: Indexer, params: dict, *, kind: str = "query", manu
     usage.record(db, idx, kind, manual=manual, elapsed_ms=elapsed, results=len(releases),
                  detail=urlencode({k: v for k, v in params.items() if k not in ("apikey",)})[:500])
     usage.mark_ok(idx)
-    return releases
+    total = next((_int(el.get("total")) for el in root.iter() if _local(el.tag) == "response"), None)
+    return releases, total
 
 
 def supports(idx: Indexer, mode: str, param: str) -> bool:

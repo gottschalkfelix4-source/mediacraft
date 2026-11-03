@@ -24,6 +24,8 @@ from ..models import Episode, Indexer, Movie, Series, utcnow
 
 log = logging.getLogger("search")
 _pool = ThreadPoolExecutor(max_workers=6, thread_name_prefix="search")
+# season queries page through up to this many result pages (season packs hide behind single episodes)
+SEASON_PAGES = 3
 
 # interactive search results, so the UI can grab by (indexer_id, guid)
 _release_cache: dict[tuple[int, str], tuple[float, dict]] = {}
@@ -84,8 +86,9 @@ def _run_queries(indexer_ids: list[int], plans: dict[int, list[list[dict]]], man
             idx = s.get(Indexer, idx_id)
             for alternatives in plans.get(idx_id, []):
                 for params in alternatives:
+                    pages = SEASON_PAGES if "season" in params and "ep" not in params else 1
                     try:
-                        res = newznab.search(s, idx, params, kind=kind, manual=manual)
+                        res = newznab.search_pages(s, idx, params, max_pages=pages, kind=kind, manual=manual)
                     except LimitReached as e:
                         errors.append(str(e))
                         return found, errors
