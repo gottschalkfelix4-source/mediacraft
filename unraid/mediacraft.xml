@@ -30,5 +30,6 @@ Wichtig für Hardlinks: Downloads und Bibliothek müssen unter demselben Pfad /d
   <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Gruppen-ID (Unraid-Standard: 100 = users)" Type="Variable" Display="advanced" Required="true" Mask="false">100</Config>
   <Config Name="UMASK" Target="UMASK" Default="002" Mode="" Description="Rechte neuer Dateien" Type="Variable" Display="advanced" Required="false" Mask="false">002</Config>
   <Config Name="TZ" Target="TZ" Default="Europe/Berlin" Mode="" Description="Zeitzone" Type="Variable" Display="advanced" Required="false" Mask="false">Europe/Berlin</Config>
+  <Config Name="URL-Basis" Target="MEDIACRAFT_URL_BASE" Default="" Mode="" Description="Optional: Unterpfad hinter einem Reverse-Proxy, z. B. /mediacraft (leer = eigene Subdomain oder direkter Zugriff)" Type="Variable" Display="advanced" Required="false" Mask="false"/>
   <Config Name="API-Key" Target="MEDIACRAFT_API_KEY" Default="" Mode="" Description="Optional: festen API-Key vorgeben (leer = wird beim ersten Start generiert)" Type="Variable" Display="advanced" Required="false" Mask="true"/>
 </Container>

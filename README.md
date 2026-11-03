@@ -52,6 +52,8 @@ Prowlarr, Jellyseerr/Overseerr und Homepage. Recherche und Architektur stehen in
 | 🇩🇪 **Deutsch zuerst** | Oberfläche auf Deutsch. Der Parser erkennt `German.DL`, `ML` und `Subbed`; Custom Formats wie *German DL* sind vorkonfiguriert. |
 | 🔌 **Drop-in-kompatibel** | `/sonarr/api/v3` und `/radarr/api/v3` für Prowlarr-Sync, Jellyseerr/Overseerr und Homepage-Widgets. |
 | 🐳 **Ein Container** | Ein Image für amd64 und arm64 mit PUID/PGID, Healthcheck und Unraid-Template. |
+| 🧰 **Bazarr & Recyclarr** | Bazarr liest Dateien samt Tonspuren, Recyclarr pflegt Custom Formats, Profile und Qualitätsdefinitionen nach TRaSH. |
+| 💾 **Backups** | Automatisch und von Hand, Wiederherstellung per Klick; vor jedem Datenbank-Update wird gesichert. |
 
 <details>
 <summary><b>Alle Funktionen anzeigen</b></summary>
@@ -75,16 +77,26 @@ Prowlarr, Jellyseerr/Overseerr und Homepage. Recherche und Architektur stehen in
   - Sprache als Pflicht oder Präferenz, Pflicht- und Ausschlussbegriffe.
   - Größenlimits pro Minute, Seeder-Minimum, Retention und Mindestalter.
   - Upgrades inklusive Proper/Repack, Blocklist.
+  - Delay-Profile: z. B. 2 h auf ein German-DL-Release warten oder Usenet bevorzugen, per Tag pro Film/Serie.
+  - Qualitätsdefinitionen (MB pro Minute) in der Oberfläche einstellbar.
 - **Release-Parser** für Scene-, P2P- und Anime-Namen: Staffelpakete, Multi-Episoden, Daily-Shows, absolute Nummerierung, Editionen.
 - **Downloadclients:** qBittorrent, Transmission, Deluge, SABnzbd, NZBGet sowie Blackhole für Torrent und NZB.
 - **Completed Download Handling**
+  - Gepackte Downloads (RAR, auch mehrteilig, 7z, ZIP) werden vor dem Import entpackt.
+  - Mediainfo (Tonspuren, Codec, Auflösung, HDR) wird aus der Datei gelesen; ein als German DL benanntes
+    Release ohne deutsche Tonspur fällt auf und wird wieder gesucht.
+  - Hängende Downloads werden nach einstellbarer Zeit als fehlgeschlagen behandelt.
   - Remote-Path-Mappings.
   - Hardlink, bei Bedarf Fallback auf Kopie.
   - Umbenennen nach Vorlage, Untertitel mitnehmen, Papierkorb für ersetzte Dateien.
   - Fehlgeschlagene Downloads landen auf der Blocklist und lösen eine neue Suche aus.
 - **Workflow:** RSS-Sync, *Gesucht* (fehlend / Cutoff nicht erreicht), Kalender mit iCal-Feed, Bibliotheksimport, manueller Import, Disk-Scan, Health-Checks und Live-Updates per Server-Sent Events.
-- **Benachrichtigungen:** Webhook, Discord, Gotify, ntfy, Telegram sowie Library-Refresh für Jellyfin, Emby und Plex.
-- **Sicherheit:** API-Key, optional Formular-Login. Passwörter der Downloadclients werden nie im Klartext an die Oberfläche ausgeliefert.
+- **Import-Listen:** TMDB-Listen, -Sammlungen und -Charts, Trakt-Watchlist/-Listen/-Charts, IMDb-Listen, Plex-Watchlist und eigene JSON-URLs; mit Ausschlussliste.
+- **Sammlungen:** Filmreihen aus TMDB mit fehlenden Teilen, einzeln oder komplett hinzufügen und überwachen.
+- **Massen-Editor:** Profil, Root-Folder (Dateien werden verschoben), Tags, Überwachung, Suche und Löschen für viele Einträge auf einmal.
+- **Benachrichtigungen:** Webhook (auch im Sonarr-/Radarr-Format), Discord, Gotify, ntfy, Telegram, Pushover, E-Mail, Apprise sowie Library-Refresh für Jellyfin, Emby und Plex; auch bei Löschen, Umbenennen und knappem Indexer-Kontingent.
+- **System:** Backups mit Wiederherstellung, Papierkorb mit Wiederherstellen, Statistik, Update-Hinweis mit Änderungsliste, Befehlshistorie über Neustarts hinweg.
+- **Sicherheit:** API-Key, optional Formular-Login mit Sperre nach Fehlversuchen und optional ohne Login im Heimnetz. Passwörter und Tokens werden nie im Klartext an die Oberfläche ausgeliefert.
 
 </details>
 
@@ -205,6 +217,8 @@ Das Template ist auf die Unraid-Standards vorbelegt:
 
 5. **Homepage-Widgets:** Typ `sonarr` mit `http://mediacraft:7979/sonarr`, Typ `radarr` mit `http://mediacraft:7979/radarr`, jeweils mit dem MediaCraft-API-Key.
 6. **Jellyfin/Emby/Plex:** unter *Einstellungen → Benachrichtigungen* einen Library-Refresh nach jedem Import einrichten.
+   **Bazarr:** als Sonarr `mediacraft:7979` mit Basis `/sonarr` und als Radarr mit Basis `/radarr` eintragen, jeweils mit dem MediaCraft-API-Key.
+   **Recyclarr:** `base_url: http://mediacraft:7979/sonarr` bzw. `/radarr` und den MediaCraft-API-Key verwenden.
 7. **Bestehende Bibliothek übernehmen:** *System → Bibliotheksimport* wählt einen Root-Folder und schlägt für jeden Ordner
    einen Treffer vor, auch über `{tmdb-123}`- und `[tvdbid-123]`-Tags. Der anschließende Disk-Scan verknüpft die vorhandenen Dateien.
 
@@ -252,12 +266,14 @@ Ohne API-Keys funktionieren Serien (TVmaze) und Anime (AniList) sofort. Für nor
 ```bash
 # Backend (FastAPI, Python 3.12)
 cd backend
-python -m venv .venv && .venv/bin/pip install -r requirements.txt pytest     # Windows: .venv/Scripts/pip
+python -m venv .venv && .venv/bin/pip install -r requirements.txt pytest ruff   # Windows: .venv/Scripts/pip
 MEDIACRAFT_CONFIG_DIR=./config .venv/bin/python -m app.main                # http://localhost:7979, API-Doku unter /api/docs
 .venv/bin/python -m pytest -q
+.venv/bin/ruff check app tests
 
 # Frontend (React + Vite, Proxy auf :7979)
 cd frontend && npm install && npm run dev
+npm test          # Vitest
 
 # Image lokal bauen
 docker build -t mediacraft:dev .
