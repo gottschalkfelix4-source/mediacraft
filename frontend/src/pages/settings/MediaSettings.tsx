@@ -98,6 +98,14 @@ export function MediaSettings() {
           <Toggle checked={d.upgrade_propers} onChange={(v) => set("upgrade_propers", v)} label="Propers/Repacks als Upgrade behandeln" />
           <Toggle checked={d.delete_empty_folders} onChange={(v) => set("delete_empty_folders", v)} label="Leere Ordner löschen" />
           <Toggle checked={d.import_extra_files} onChange={(v) => set("import_extra_files", v)} label="Zusatzdateien importieren (Untertitel, NFO …)" />
+          <Toggle checked={d.unpack_archives} onChange={(v) => set("unpack_archives", v)} label="Gepackte Downloads (RAR, 7z, ZIP) vor dem Import entpacken" />
+          <Toggle checked={d.probe_files} onChange={(v) => set("probe_files", v)} label="Mediainfo lesen (echte Tonspuren, Codec, Auflösung, HDR)" />
+          <Toggle
+            checked={d.probe_update_languages}
+            onChange={(v) => set("probe_update_languages", v)}
+            disabled={!d.probe_files}
+            label="Sprachen aus den Tonspuren übernehmen (falsch gelabelte Releases werden dann wieder gesucht)"
+          />
         </div>
         <div className="form-grid">
           <Field label="Zusatzdatei-Endungen" help="Kommagetrennt">

@@ -77,6 +77,8 @@ export function StatusPage() {
               ["Datenbank", <span className="mono">{s.db}</span>],
               ["URL-Basis", s.url_base || "–"],
               ["Bibliothek", `${s.movies} Filme · ${s.series} Serien`],
+              ["Mediainfo", s.tools?.mediainfo ?? <span className="tone-text-warning">nicht installiert</span>],
+              ["Entpacken", s.tools?.unpack.length ? s.tools.unpack.join(", ") : "nur ZIP"],
             ]}
           />
         )}

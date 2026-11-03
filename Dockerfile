@@ -19,8 +19,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     UMASK=002 \
     TZ=Europe/Berlin
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends tini tzdata curl \
+# mediainfo: real audio languages/codecs of imported files; unrar (non-free) + 7zip: packed downloads
+RUN sed -i 's/^Components: main$/Components: main non-free/' /etc/apt/sources.list.d/debian.sources \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends tini tzdata curl mediainfo 7zip \
+    && (apt-get install -y --no-install-recommends unrar || echo "unrar nicht verfügbar – RAR über 7zip") \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

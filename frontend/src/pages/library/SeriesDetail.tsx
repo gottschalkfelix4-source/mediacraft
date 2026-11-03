@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Search, UserSearch, RefreshCw, FileEdit, Link2, Pencil, Trash2, Bookmark, BookmarkX, FolderOpen, Clock, ExternalLink, ChevronDown, ChevronRight, ListChecks, FileX, Tv,
+  Search, UserSearch, RefreshCw, FileEdit, Link2, Pencil, Trash2, Bookmark, BookmarkX, FolderOpen, Clock, ExternalLink, ChevronDown, ChevronRight, ListChecks, FileX, Tv, AlertTriangle,
 } from "lucide-react";
 import { api, errorMessage } from "../../api";
 import { useApiMutation, useCommand, useNow, useProfiles, useTags } from "../../hooks";
@@ -17,6 +17,7 @@ import { epCode, fmtDate, fmtDateTime, fmtSize, langLabel, parseDate, providerLa
 import { HistoryTable } from "./HistoryTable";
 import { RenameDialog } from "./RenameDialog";
 import { DeleteDialog } from "./DeleteDialog";
+import { languageMismatch } from "../../components/StreamInfo";
 import { RematchDialog } from "./RematchDialog";
 import { EPISODE_SOURCE_OPTIONS, SERIES_TYPE_OPTIONS } from "./AddSeries";
 import { seriesProgress } from "./SeriesPage";
@@ -313,6 +314,11 @@ function SeasonBlock({ series, season, monitored, stats, episodes, open, onToggl
                       ) : e.file ? (
                         <span className="file-cell" title={`${e.file.path}\n${fmtSize(e.file.size)}${e.file.languages?.length ? " · " + e.file.languages.map(langLabel).join(", ") : ""}`}>
                           <Badge tone="success">{e.file.quality}</Badge>
+                          {languageMismatch(e.file) && (
+                            <span className="tone-text-warning" title={`Laut Release ${languageMismatch(e.file)!.map(langLabel).join("/")}, Tonspuren: ${e.file.languages.map(langLabel).join(", ")}`}>
+                              <AlertTriangle size={13} />
+                            </span>
+                          )}
                           <span className="muted small">{fmtSize(e.file.size)}</span>
                         </span>
                       ) : e.has_file ? (

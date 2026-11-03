@@ -74,8 +74,15 @@ def status(db: Session = Depends(get_db)):
         "python": platform.python_version(), "os": platform.platform(), "config_dir": str(config.CONFIG_DIR),
         "db": str(config.DB_PATH), "api_key": config.API_KEY, "url_base": config.URL_BASE,
         "movies": db.query(Movie).count(), "series": db.query(Series).count(),
-        "docker": os.path.exists("/.dockerenv"),
+        "docker": os.path.exists("/.dockerenv"), "tools": _tools(),
     }
+
+
+def _tools() -> dict:
+    from ...core import mediainfo
+    from ...services import unpack
+
+    return {"mediainfo": mediainfo.tool(), "unpack": [k for k, v in unpack.tools().items() if v]}
 
 
 @router.post("/system/apikey/regenerate")

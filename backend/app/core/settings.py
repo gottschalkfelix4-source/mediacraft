@@ -41,6 +41,9 @@ DEFAULTS: dict[str, dict] = {
         "min_free_space_mb": 200,
         "file_chmod": "",
         "upgrade_propers": True,
+        "unpack_archives": True,  # extract RAR/7z/ZIP downloads before import
+        "probe_files": True,  # read real streams (ffprobe/MediaInfo) after import and scan
+        "probe_update_languages": True,  # real audio languages replace those guessed from the name
     },
     "downloads": {
         "completed_handling": True,

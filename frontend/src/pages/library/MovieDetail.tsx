@@ -15,6 +15,7 @@ import { fmtDate, fmtSize, langLabel, AVAILABILITY_LABELS, MOVIE_STATUS_LABELS }
 import { HistoryTable } from "./HistoryTable";
 import { RenameDialog } from "./RenameDialog";
 import { DeleteDialog } from "./DeleteDialog";
+import { streamRows } from "../../components/StreamInfo";
 import { RematchDialog } from "./RematchDialog";
 import type { MinimumAvailability, Movie } from "../../types";
 
@@ -140,13 +141,28 @@ export function MovieDetail() {
       />
       {tab === "info" ? (
         <div className="detail-grid">
-          <Card title="Datei" actions={m.file && <button className="btn btn-sm btn-danger-outline" onClick={deleteFile} title="Datei löschen"><FileX size={14} /> Datei löschen</button>}>
+          <Card
+            title="Datei"
+            actions={
+              m.file && (
+                <div className="row gap-sm">
+                  <button className="btn btn-sm" onClick={() => command("probe_files", { movie_id: m.id })} title="Tonspuren, Codecs und Auflösung aus der Datei lesen">
+                    Mediainfo lesen
+                  </button>
+                  <button className="btn btn-sm btn-danger-outline" onClick={deleteFile} title="Datei löschen">
+                    <FileX size={14} /> Datei löschen
+                  </button>
+                </div>
+              )
+            }
+          >
             {download && <div className="mb"><DownloadStatus q={download} wide /></div>}
             {m.file ? (
               <KV
                 items={[
                   ["Qualität", <><Badge tone="info">{m.file.quality}</Badge>{m.file.proper > 0 && <Badge tone="accent">Proper v{m.file.proper + 1}</Badge>}</>],
                   ["Sprachen", m.file.languages?.map(langLabel).join(", ") || "–"],
+                  ...streamRows(m.file),
                   ["Größe", fmtSize(m.file.size)],
                   ["Release-Gruppe", m.file.release_group || "–"],
                   ["Edition", m.file.edition || "–"],

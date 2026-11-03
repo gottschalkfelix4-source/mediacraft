@@ -221,6 +221,7 @@ export const COMMAND_LABELS: Record<string, string> = {
   backup: "Backup",
   process_pending: "Zurückgestellte Releases",
   import_lists: "Import-Listen",
+  probe_files: "Mediainfo lesen",
 };
 
 export function commandLabel(name: string): string {

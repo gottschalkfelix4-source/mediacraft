@@ -568,6 +568,9 @@ export interface MediaSettings {
   min_free_space_mb: number;
   file_chmod: string;
   upgrade_propers: boolean;
+  unpack_archives: boolean;
+  probe_files: boolean;
+  probe_update_languages: boolean;
   quality_sizes?: Record<string, { min?: number; max?: number }>;
 }
 
@@ -657,6 +660,7 @@ export interface SystemStatus {
   movies: number;
   series: number;
   docker: boolean;
+  tools?: { mediainfo: string | null; unpack: string[] };
 }
 
 export interface HealthIssue {

@@ -136,6 +136,10 @@ def _rename_movie(db: Session, movie_id: int):
     return rename_apply(db, movie=m) if m else 0
 
 
+def _probe_files(db: Session, movie_id: int | None = None, series_id: int | None = None):
+    return {"probed": maintenance.probe_missing(db, limit=100000, movie_id=movie_id, series_id=series_id, force=True)}
+
+
 def register_all() -> None:
     commands.register("movie_search", _movie_search)
     commands.register("movies_search", _movies_search)
@@ -158,3 +162,4 @@ def register_all() -> None:
     commands.register("backup", backup.scheduled_backup)
     commands.register("process_pending", delay.process_pending)
     commands.register("import_lists", importlists.sync_all)
+    commands.register("probe_files", _probe_files)

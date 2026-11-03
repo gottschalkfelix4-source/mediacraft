@@ -14,7 +14,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from ..core import customformats, naming
+from ..core import customformats, mediainfo, naming
 from ..core import settings as settings_mod
 from ..core.decision import map_episodes, movie_title_matches, series_title_matches
 from ..core.events import publish
@@ -169,6 +169,15 @@ def _file_info(p: ParsedRelease, release_name: Optional[str]) -> dict:
             "languages": p.languages, "release_name": release_name}
 
 
+def probe_file(mf: MediaFile, cfg: dict) -> bool:
+    """Read the real streams of a library file (if enabled and a probe tool is installed)."""
+    if not cfg.get("probe_files", True) or not mf.path or not os.path.isfile(mf.path):
+        return False
+    result = mediainfo.probe(mf.path)
+    mediainfo.apply(mf, result, cfg.get("probe_update_languages", True))
+    return result is not None
+
+
 def _chmod(path: str, cfg: dict) -> None:
     if cfg.get("file_chmod") and os.name != "nt":
         try:
@@ -206,6 +215,7 @@ def import_movie_file(db: Session, movie: Movie, src: str, p: ParsedRelease, *, 
                    languages=p.languages, release_group=p.release_group, release_name=info["release_name"],
                    format_score=score, edition=p.edition,
                    media_info={"codec": p.codec, "hdr": p.hdr, "audio": p.audio, "channels": p.audio_channels})
+    probe_file(mf, cfg)
     db.add(mf)
     db.flush()
     upgraded = old is not None
@@ -268,6 +278,7 @@ def import_episode_file(db: Session, series: Series, episodes: list[Episode], sr
                    proper=p.revision, languages=p.languages, release_group=p.release_group,
                    release_name=info["release_name"], format_score=score,
                    media_info={"codec": p.codec, "hdr": p.hdr, "audio": p.audio, "channels": p.audio_channels})
+    probe_file(mf, cfg)
     db.add(mf)
     db.flush()
     for e in episodes:
@@ -297,8 +308,21 @@ def import_episode_file(db: Session, series: Series, episodes: list[Episode], sr
 # ------------------------------------------------------------------------------------- downloads
 def process_download(db: Session, q: QueueItem, path: str, mode: str) -> tuple[bool, list[str]]:
     """Import a finished download. Returns (fully_imported, messages)."""
+    from . import unpack
+
     cfg = settings_mod.get(db, "media")
     files = video_files(path, cfg.get("sample_max_mb", 150)) if path and os.path.exists(path) else []
+    extracted = None
+    if not files and path and os.path.isdir(path) and cfg.get("unpack_archives", True):
+        try:
+            extracted = unpack.unpack(path)
+        except unpack.UnpackError as e:
+            unpack.cleanup(os.path.join(path, unpack.UNPACK_DIR))
+            return False, [f"Entpacken fehlgeschlagen: {e}"]
+        if extracted:
+            files = video_files(extracted, cfg.get("sample_max_mb", 150))
+            path = extracted
+            mode = "move"  # the extracted copy is ours
     if q.media_type == "movie" and files:
         files = [max(files, key=os.path.getsize)]  # only the main file is imported
     _tracking.tracker = _ImportTracker(q.id, files) if files else None
@@ -307,6 +331,7 @@ def process_download(db: Session, q: QueueItem, path: str, mode: str) -> tuple[b
     finally:
         _tracking.tracker = None
         import_progress.pop(q.id, None)
+        unpack.cleanup(extracted)
 
 
 def _already_imported(db: Session, q: QueueItem) -> bool:

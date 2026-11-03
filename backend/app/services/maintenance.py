@@ -21,7 +21,7 @@ from ..indexers import usage
 from ..metadata.manager import MetadataManager
 from ..models import (DownloadClient, Episode, Indexer, IndexerEvent, MediaFile, MetadataCache, Movie, QualityProfile,
                       QueueItem, RootFolder, Series, utcnow)
-from .importer import video_files
+from .importer import probe_file, video_files
 
 log = logging.getLogger("maintenance")
 
@@ -46,6 +46,7 @@ def scan_movie(db: Session, movie: Movie) -> dict:
                            quality=p.quality, proper=p.revision, languages=p.languages, release_group=p.release_group,
                            release_name=os.path.splitext(os.path.basename(src))[0], edition=p.edition,
                            media_info={"codec": p.codec, "hdr": p.hdr, "audio": p.audio})
+            probe_file(mf, settings_mod.get(db, "media"))
             db.add(mf)
             db.flush()
             movie.file_id = mf.id
@@ -89,6 +90,7 @@ def scan_series(db: Session, series: Series) -> dict:
                        quality=p.quality, proper=p.revision, languages=p.languages, release_group=p.release_group,
                        release_name=os.path.splitext(os.path.basename(path))[0],
                        media_info={"codec": p.codec, "hdr": p.hdr, "audio": p.audio})
+        probe_file(mf, settings_mod.get(db, "media"))
         db.add(mf)
         db.flush()
         for e in eps:
@@ -109,7 +111,38 @@ def scan_all(db: Session) -> dict:
         total["series"] += 1
         total["linked"] += r["linked"]
         total["unlinked"] += r["unlinked"]
+    db.commit()
+    total["probed"] = probe_missing(db)
     return total
+
+
+def probe_missing(db: Session, limit: int = 300, movie_id: int | None = None, series_id: int | None = None,
+                  force: bool = False) -> int:
+    """Read stream info for library files that don't have it yet (bounded per run – probing is slow on NAS)."""
+    from ..core import mediainfo
+
+    cfg = settings_mod.get(db, "media")
+    if not cfg.get("probe_files", True) or not mediainfo.tool():
+        return 0
+    q = db.query(MediaFile)
+    if movie_id:
+        q = q.filter(MediaFile.movie_id == movie_id)
+    if series_id:
+        q = q.filter(MediaFile.series_id == series_id)
+    done = 0
+    for mf in q.all():
+        if done >= limit:
+            break
+        if not force and (mf.media_info or {}).get("probed"):
+            continue
+        if probe_file(mf, cfg):
+            done += 1
+            if done % 20 == 0:
+                db.commit()  # don't hold the write lock for a whole library
+        else:
+            mf.media_info = {**(mf.media_info or {}), "probed": True}  # unreadable: don't retry every scan
+    db.commit()
+    return done
 
 
 # ======================================================================================== library import
