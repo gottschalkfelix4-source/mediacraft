@@ -611,6 +611,7 @@ export interface UiSettings {
 
 export interface AuthSettings {
   method: "none" | "forms";
+  local_bypass: boolean;
   username: string;
   password?: string;
 }

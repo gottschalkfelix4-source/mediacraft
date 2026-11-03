@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, Eye, EyeOff, RefreshCw, ShieldCheck, Link2 } from "lucide-react";
 import { api, errorMessage } from "../../api";
-import { ErrorBox, Field, Loading, Select, TextInput } from "../../components/ui";
+import { ErrorBox, Field, Loading, Select, TextInput, Toggle } from "../../components/ui";
 import { useConfirm } from "../../components/Modal";
 import { useToast } from "../../components/Toast";
 import { SaveBar, Section, useSection } from "./common";
@@ -68,7 +68,10 @@ export function GeneralSettings() {
 
   return (
     <div className="settings-page">
-      <Section title="Sicherheit" help="Mit „Formular-Anmeldung“ ist die Weboberfläche passwortgeschützt. Der API-Key funktioniert unabhängig davon.">
+      <Section
+        title="Sicherheit"
+        help="Mit „Formular-Anmeldung“ ist die Weboberfläche passwortgeschützt. Der API-Key funktioniert unabhängig davon. Nach 5 Fehlversuchen wird eine Adresse für 15 Minuten gesperrt."
+      >
         <div className="form-grid">
           <Field label="Authentifizierung">
             <Select
@@ -90,6 +93,13 @@ export function GeneralSettings() {
             <input className="input" type="password" autoComplete="new-password" value={password2} onChange={(e) => setPassword2(e.target.value)} disabled={a.method === "none"} />
           </Field>
         </div>
+        <Toggle
+          checked={!!a.local_bypass}
+          onChange={(v) => auth.set("local_bypass", v)}
+          disabled={a.method === "none"}
+          label="Für lokale Adressen keine Anmeldung verlangen"
+          title="Gilt nur für direkte Zugriffe aus dem Heimnetz. Über einen Reverse-Proxy ist die Anmeldung immer nötig."
+        />
       </Section>
 
       <Section

@@ -77,6 +77,7 @@ DEFAULTS: dict[str, dict] = {
     },
     "auth": {
         "method": "none",  # none | forms
+        "local_bypass": False,  # forms: no login needed from private/loopback addresses (not via proxy)
         "username": "",
         "password_hash": "",
         "secret": "",

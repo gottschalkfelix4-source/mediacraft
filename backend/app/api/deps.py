@@ -3,8 +3,11 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import ipaddress
 import secrets
+import threading
 import time
+from collections import deque
 from typing import Any, Iterable
 
 from fastapi import Depends, HTTPException, Request
@@ -48,6 +51,68 @@ def check_session(secret: str, token: str | None) -> bool:
     return hmac.compare_digest(good, sig) and int(exp) > time.time()
 
 
+FORWARD_HEADERS = ("x-forwarded-for", "x-real-ip", "forwarded")
+
+
+def is_local_request(request: Request) -> bool:
+    """Direct request from a private/loopback address. Anything that came through a reverse proxy (or
+    claims to, via forwarding headers) is never local – those headers can be spoofed by anyone."""
+    if any(h in request.headers for h in FORWARD_HEADERS):
+        return False
+    host = request.client.host if request.client else ""
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return host in ("localhost", "testclient")
+    if ip.version == 6 and ip.ipv4_mapped:
+        ip = ip.ipv4_mapped
+    return ip.is_private or ip.is_loopback or ip.is_link_local
+
+
+class LoginLimiter:
+    """Brute-force protection: at most ``attempts`` failed logins per client within ``window`` seconds."""
+
+    def __init__(self, attempts: int = 5, window: int = 900):
+        self.attempts, self.window = attempts, window
+        self._fails: dict[str, deque] = {}
+        self._lock = threading.Lock()
+
+    def _recent(self, key: str, now: float) -> deque:
+        q = self._fails.setdefault(key, deque())
+        while q and q[0] < now - self.window:
+            q.popleft()
+        return q
+
+    def retry_after(self, key: str) -> int:
+        """Seconds until the next attempt is allowed (0 = allowed now)."""
+        now = time.time()
+        with self._lock:
+            q = self._recent(key, now)
+            return int(q[0] + self.window - now) + 1 if len(q) >= self.attempts else 0
+
+    def failed(self, key: str) -> None:
+        with self._lock:
+            self._recent(key, time.time()).append(time.time())
+
+    def reset(self, key: str) -> None:
+        with self._lock:
+            self._fails.pop(key, None)
+
+
+login_limiter = LoginLimiter()
+# forwarding headers can be forged to look like many clients – this caps failures across all of them
+global_login_limiter = LoginLimiter(attempts=30, window=900)
+
+
+def session_ok(request: Request, auth: dict) -> bool:
+    """Web UI access without API key: no auth configured, a valid session, or a local request (if allowed)."""
+    if auth.get("method", "none") == "none":
+        return True
+    if auth.get("local_bypass") and is_local_request(request):
+        return True
+    return check_session(auth.get("secret", ""), request.cookies.get(COOKIE))
+
+
 def api_key_from(request: Request) -> str | None:
     return (request.headers.get("X-Api-Key") or request.query_params.get("apikey")
             or request.query_params.get("apiKey"))
@@ -57,10 +122,7 @@ def require_auth(request: Request, db: Session = Depends(get_db)) -> None:
     key = api_key_from(request)
     if key and hmac.compare_digest(key, config.API_KEY):
         return
-    auth = settings_mod.get(db, "auth")
-    if auth.get("method", "none") == "none":
-        return
-    if check_session(auth.get("secret", ""), request.cookies.get(COOKIE)):
+    if session_ok(request, settings_mod.get(db, "auth")):
         return
     raise HTTPException(401, "Nicht angemeldet")
 

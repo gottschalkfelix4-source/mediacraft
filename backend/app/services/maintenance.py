@@ -198,6 +198,10 @@ def health(db: Session) -> list[dict]:
     if not any(p.supports_movies and n in ("tmdb", "omdb") for n, p in meta.providers.items()):
         issues.append({"level": "warning", "source": "metadata",
                        "message": "Kein Film-Metadatenprovider mit Key (TMDB empfohlen) – Filmsuche eingeschränkt"})
+    if settings_mod.get(db, "auth").get("method", "none") == "none":
+        issues.append({"level": "warning", "source": "security",
+                       "message": "Keine Anmeldung aktiv – jeder im Netz kann MediaCraft bedienen "
+                                  "(Einstellungen → Allgemein / Sicherheit)"})
     blocked = db.query(QueueItem).filter(QueueItem.status == "import_blocked").count()
     if blocked:
         issues.append({"level": "warning", "source": "queue", "message": f"{blocked} Download(s) mit blockiertem Import"})

@@ -25,7 +25,7 @@ from ...db import get_db
 from ...models import Movie, RootFolder, Series, utcnow
 from ...services import backup as backup_svc
 from ...services.commands import health_cache
-from ..deps import COOKIE, check_session, hash_password, make_session, require_auth, verify_password
+from ..deps import COOKIE, global_login_limiter, hash_password, login_limiter, make_session, require_auth, session_ok, verify_password
 
 public = APIRouter(prefix="/api/v1")
 router = APIRouter(prefix="/api/v1", dependencies=[Depends(require_auth)])
@@ -37,16 +37,24 @@ STARTED = utcnow()
 @public.get("/auth/status")
 def auth_status(request: Request, db: Session = Depends(get_db)):
     auth = settings_mod.get(db, "auth")
-    method = auth.get("method", "none")
-    logged_in = method == "none" or check_session(auth.get("secret", ""), request.cookies.get(COOKIE))
-    return {"method": method, "authenticated": logged_in, "app": config.APP_NAME, "version": config.VERSION}
+    return {"method": auth.get("method", "none"), "authenticated": session_ok(request, auth), "app": config.APP_NAME,
+            "version": config.VERSION}
 
 
 @public.post("/auth/login")
-def login(body: dict, response: Response, db: Session = Depends(get_db)):
+def login(body: dict, request: Request, response: Response, db: Session = Depends(get_db)):
+    client = request.client.host if request.client else "?"
+    wait = max(login_limiter.retry_after(client), global_login_limiter.retry_after("*"))
+    if wait:
+        raise HTTPException(429, f"Zu viele Fehlversuche – bitte in {max(1, wait // 60)} Minute(n) erneut versuchen",
+                            headers={"Retry-After": str(wait)})
     auth = settings_mod.get(db, "auth")
     if body.get("username") != auth.get("username") or not verify_password(body.get("password", ""), auth.get("password_hash", "")):
+        login_limiter.failed(client)
+        global_login_limiter.failed("*")
+        logging.getLogger("auth").warning("Fehlgeschlagene Anmeldung für '%s' von %s", body.get("username"), client)
         raise HTTPException(401, "Benutzername oder Passwort falsch")
+    login_limiter.reset(client)
     token = make_session(auth["secret"], auth["username"], 30 if body.get("remember") else 1)
     response.set_cookie(COOKIE, token, httponly=True, samesite="lax", max_age=30 * 86400 if body.get("remember") else None)
     return {"ok": True}
@@ -223,13 +231,14 @@ async def restore_upload(request: Request, restart_now: bool = True):
 
 
 # ------------------------------------------------------------------------------------ settings
+AUTH_PUBLIC = ("method", "username", "local_bypass")
 SECTIONS = ("metadata", "media", "downloads", "indexers", "wanted", "backup", "ui", "auth")
 
 
 @router.get("/settings")
 def get_settings(db: Session = Depends(get_db)):
     out = {s: settings_mod.get(db, s) for s in SECTIONS}
-    out["auth"] = {k: v for k, v in out["auth"].items() if k in ("method", "username")}
+    out["auth"] = {k: v for k, v in out["auth"].items() if k in AUTH_PUBLIC}
     return out
 
 
@@ -238,7 +247,8 @@ def put_settings(section: str, body: dict, db: Session = Depends(get_db)):
     if section not in SECTIONS:
         raise HTTPException(404, "Unbekannter Bereich")
     if section == "auth":
-        patch = {"method": body.get("method", "none"), "username": body.get("username", "")}
+        patch = {"method": body.get("method", "none"), "username": body.get("username", ""),
+                 "local_bypass": bool(body.get("local_bypass", False))}
         if body.get("password"):
             patch["password_hash"] = hash_password(body["password"])
         current = settings_mod.get(db, "auth")
@@ -247,7 +257,7 @@ def put_settings(section: str, body: dict, db: Session = Depends(get_db)):
         if patch["method"] == "forms" and not (patch.get("password_hash") or current.get("password_hash")):
             raise HTTPException(400, "Für Formular-Anmeldung muss ein Passwort gesetzt werden")
         res = settings_mod.update(db, "auth", patch)
-        return {k: v for k, v in res.items() if k in ("method", "username")}
+        return {k: v for k, v in res.items() if k in AUTH_PUBLIC}
     return settings_mod.update(db, section, body)
 
 
