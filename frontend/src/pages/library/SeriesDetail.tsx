@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Search, UserSearch, RefreshCw, FileEdit, Link2, Pencil, Trash2, Bookmark, BookmarkX, FolderOpen, Clock, ExternalLink, ChevronDown, ChevronRight, ListChecks, FileX, Tv, AlertTriangle,
+  Search, UserSearch, RefreshCw, FileEdit, Link2, Pencil, Trash2, Bookmark, BookmarkX, FolderOpen, Clock, ExternalLink, ChevronDown, ChevronRight, ListChecks, FileX, Tv, AlertTriangle, Download, CheckCheck,
 } from "lucide-react";
 import { api, errorMessage } from "../../api";
 import { useApiMutation, useCommand, useNow, useProfiles, useTags } from "../../hooks";
@@ -248,8 +248,16 @@ function SeasonBlock({ series, season, monitored, stats, episodes, open, onToggl
   const pct = airedTotal ? (100 * Math.min(stats.files, airedTotal)) / airedTotal : stats.files ? 100 : 0;
   const tone = stats.files >= airedTotal && airedTotal > 0 ? "success" : monitored ? "warning" : "muted";
 
+  // what is already on its way: episodes of this season in the download queue
+  const queued = episodes.filter((e) => downloads.episodes.has(e.id));
+  const queuedMissing = queued.filter((e) => !e.has_file).length;
+  const loading = queued.some((e) => downloads.episodes.get(e.id)!.status === "downloading");
+  const queuedPct = airedTotal ? (100 * Math.min(queuedMissing, Math.max(0, airedTotal - stats.files))) / airedTotal : 0;
+  const stillMissing = Math.max(0, airedTotal - stats.files - queuedMissing);
+  const queueTip = queued.map((e) => `${epCode(e.season, e.number)} · ${downloads.episodes.get(e.id)!.title}`).join("\n");
+
   return (
-    <section className={`season ${open ? "open" : ""}`}>
+    <section className={`season ${open ? "open" : ""} ${queued.length ? "has-queue" : ""}`}>
       <div className="season-head">
         <button className={`icon-btn monitor-btn ${monitored ? "on" : ""}`} title={monitored ? "Staffel überwacht" : "Staffel nicht überwacht"} aria-label={`${label} Überwachung umschalten`} onClick={() => setSeasonMon.mutate(!monitored)}>
           {monitored ? <Bookmark size={18} /> : <BookmarkX size={18} />}
@@ -260,9 +268,24 @@ function SeasonBlock({ series, season, monitored, stats, episodes, open, onToggl
           <span className="muted small">
             {stats.files}/{stats.total} Dateien · {stats.aired} ausgestrahlt
           </span>
+          {queued.length > 0 && (
+            <span className="season-queue" title={queueTip}>
+              <Download size={12} /> {queued.length} in Warteschlange
+            </span>
+          )}
+          {queued.length > 0 && stillMissing > 0 && <span className="season-missing">{stillMissing} fehlen noch</span>}
+          {queued.length > 0 && stillMissing === 0 && stats.files < airedTotal && (
+            <span className="season-covered">
+              <CheckCheck size={12} /> alles angefordert
+            </span>
+          )}
         </button>
         <div className="season-progress">
-          <Progress value={pct} tone={tone} small />
+          {/* files (green/orange) plus the queued episodes as a striped segment */}
+          <div className="progress progress-sm season-bar" title={`${stats.files} vorhanden · ${queuedMissing} in Warteschlange · ${stillMissing} fehlen`}>
+            <div className={`progress-bar tone-${tone}`} style={{ width: `${pct}%` }} />
+            {queuedPct > 0 && <div className={`progress-bar season-bar-queued ${loading ? "live" : ""}`} style={{ width: `${queuedPct}%` }} />}
+          </div>
         </div>
         <div className="season-actions">
           <button className="icon-btn" title={`${label}: automatisch suchen`} aria-label="Staffel automatisch suchen" onClick={() => command("season_search", { series_id: series.id, season }, `Suche ${series.title} ${label}`)}>
