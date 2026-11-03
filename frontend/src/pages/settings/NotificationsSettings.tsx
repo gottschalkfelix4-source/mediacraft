@@ -2,22 +2,82 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Pencil, Trash2, Save, Send, Bell } from "lucide-react";
 import { api, errorMessage } from "../../api";
-import { Badge, Empty, ErrorBox, Field, Loading, Spinner, TextInput, Toggle } from "../../components/ui";
+import { Badge, Empty, ErrorBox, Field, Loading, Select, Spinner, TextInput, Toggle } from "../../components/ui";
 import { Modal, useConfirm } from "../../components/Modal";
 import { useToast } from "../../components/Toast";
 import { useApiMutation } from "../../hooks";
 import { Section } from "./common";
 import type { Notification, NotificationBase, NotificationSchema } from "../../types";
 
-const KIND_LABELS: Record<string, string> = { webhook: "Webhook", discord: "Discord", gotify: "Gotify", ntfy: "ntfy", telegram: "Telegram", jellyfin: "Jellyfin", emby: "Emby", plex: "Plex" };
-const FIELD_LABELS: Record<string, string> = { url: "URL", method: "HTTP-Methode", webhook_url: "Webhook-URL", username: "Benutzername", token: "Token", priority: "Priorität", topic: "Topic", bot_token: "Bot-Token", chat_id: "Chat-ID", api_key: "API-Key" };
-const FIELD_HINTS: Record<string, string> = { method: "POST oder PUT", priority: "z. B. 5", url: "https://…" };
+const KIND_LABELS: Record<string, string> = {
+  webhook: "Webhook",
+  discord: "Discord",
+  gotify: "Gotify",
+  ntfy: "ntfy",
+  telegram: "Telegram",
+  pushover: "Pushover",
+  email: "E-Mail",
+  apprise: "Apprise",
+  jellyfin: "Jellyfin",
+  emby: "Emby",
+  plex: "Plex",
+};
+const FIELD_LABELS: Record<string, string> = {
+  url: "URL",
+  method: "HTTP-Methode",
+  format: "Format",
+  webhook_url: "Webhook-URL",
+  username: "Benutzername",
+  token: "Token",
+  priority: "Priorität",
+  topic: "Topic",
+  bot_token: "Bot-Token",
+  chat_id: "Chat-ID",
+  api_key: "API-Key",
+  user_key: "User-Key",
+  app_token: "App-Token",
+  device: "Gerät (optional)",
+  host: "SMTP-Server",
+  port: "Port",
+  security: "Verschlüsselung",
+  password: "Passwort",
+  sender: "Absender",
+  recipients: "Empfänger",
+  urls: "Apprise-URLs (optional)",
+  tag: "Tag (optional)",
+};
+const FIELD_HINTS: Record<string, string> = {
+  method: "POST oder PUT",
+  priority: "z. B. 5 (Pushover: -2 bis 2)",
+  url: "https://…",
+  port: "587 (STARTTLS) oder 465 (SSL)",
+  recipients: "mehrere mit Komma trennen",
+  urls: "z. B. tgram://… – leer, wenn die URL auf eine gespeicherte Konfiguration zeigt",
+};
+const FIELD_HELP: Record<string, Record<string, string>> = {
+  apprise: { url: "Apprise-API, z. B. http://apprise:8000/notify/<key> oder http://apprise:8000/notify" },
+};
+const FIELD_OPTIONS: Record<string, { value: string; label: string }[]> = {
+  format: [
+    { value: "mediacraft", label: "MediaCraft (eigenes Format)" },
+    { value: "sonarr", label: "Sonarr-kompatibel" },
+    { value: "radarr", label: "Radarr-kompatibel" },
+  ],
+  security: [
+    { value: "starttls", label: "STARTTLS" },
+    { value: "ssl", label: "SSL/TLS" },
+    { value: "none", label: "keine" },
+  ],
+};
 const EVENTS: [keyof NotificationBase, string][] = [
   ["on_grab", "Bei Grab"],
   ["on_import", "Bei Import"],
   ["on_upgrade", "Bei Upgrade"],
   ["on_failure", "Bei Fehlschlag"],
   ["on_health", "Bei Health-Problemen"],
+  ["on_limit", "Bei knappem Indexer-Kontingent (90 % / erschöpft)"],
+  ["on_delete", "Beim Löschen"],
+  ["on_rename", "Beim Umbenennen"],
 ];
 
 export function NotificationsSettings() {
@@ -110,6 +170,9 @@ function NotificationDialog({ n, kind, schema, onClose }: { n?: Notification; ki
     on_upgrade: n?.on_upgrade ?? true,
     on_failure: n?.on_failure ?? true,
     on_health: n?.on_health ?? false,
+    on_delete: n?.on_delete ?? false,
+    on_rename: n?.on_rename ?? false,
+    on_limit: n?.on_limit ?? false,
     settings: { ...(n?.settings ?? {}) },
   }));
   const [testing, setTesting] = useState(false);
@@ -122,7 +185,7 @@ function NotificationDialog({ n, kind, schema, onClose }: { n?: Notification; ki
   const test = async () => {
     setTesting(true);
     try {
-      await api.testNotification(f);
+      await api.testNotification({ ...f, id: n?.id });
       toast.success("Testnachricht gesendet");
     } catch (e) {
       toast.error("Test fehlgeschlagen", errorMessage(e));
@@ -151,8 +214,13 @@ function NotificationDialog({ n, kind, schema, onClose }: { n?: Notification; ki
       <Field label="Name">
         <TextInput value={f.name} onValue={(v) => setF({ ...f, name: v })} />
       </Field>
-      {fields.map((k) => (
-        <Field key={k} label={FIELD_LABELS[k] ?? k}>
+      {fields.map((k) =>
+        FIELD_OPTIONS[k] ? (
+          <Field key={k} label={FIELD_LABELS[k] ?? k}>
+            <Select value={f.settings[k] || FIELD_OPTIONS[k][0].value} onValue={(v) => setF({ ...f, settings: { ...f.settings, [k]: v } })} options={FIELD_OPTIONS[k]} />
+          </Field>
+        ) : (
+        <Field key={k} label={FIELD_LABELS[k] ?? k} help={FIELD_HELP[kind]?.[k]}>
           <input
             className={`input ${/token|key/.test(k) ? "mono" : ""}`}
             type={/token|key|password/.test(k) ? "password" : "text"}
@@ -162,7 +230,8 @@ function NotificationDialog({ n, kind, schema, onClose }: { n?: Notification; ki
             onChange={(e) => setF({ ...f, settings: { ...f.settings, [k]: e.target.value } })}
           />
         </Field>
-      ))}
+        ),
+      )}
       <h4>Ereignisse</h4>
       <div className="col gap-sm">
         {EVENTS.map(([k, l]) => (

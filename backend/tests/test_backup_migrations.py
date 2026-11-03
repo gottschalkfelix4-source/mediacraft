@@ -29,8 +29,8 @@ def test_migration_default_for_not_null_columns():
 
     with engine.begin() as conn:
         conn.exec_driver_sql('ALTER TABLE "notifications" DROP COLUMN "on_health"')
-        conn.exec_driver_sql("INSERT INTO notifications (name, kind, enabled, on_grab, on_import, on_upgrade, on_failure, settings) "
-                             "VALUES ('x', 'webhook', 1, 1, 1, 1, 1, '{}')")
+        conn.exec_driver_sql("INSERT INTO notifications (name, kind, enabled, on_grab, on_import, on_upgrade, on_failure, on_delete, on_rename, on_limit, settings) "
+                             "VALUES ('x', 'webhook', 1, 1, 1, 1, 1, 0, 0, 0, '{}')")
     migrate(engine, had_tables=True)
     assert "on_health" in {c["name"] for c in inspect(engine).get_columns("notifications")}
     with engine.begin() as conn:

@@ -226,6 +226,7 @@ def health(db: Session) -> list[dict]:
             st = usage.state(db, i, kind, now)
             if st.limit and st.percent >= 90:
                 issues.append({"level": "warning" if st.percent < 100 else "error", "source": "indexer",
+                               "key": f"limit:{i.id}:{kind}:{'full' if st.percent >= 100 else 'high'}",
                                "message": f"{i.name}: {kind}-Kontingent {st.used}/{st.limit} ({st.percent:.0f} %)"
                                           + (f", frei ab {st.next_slot[:16].replace('T', ' ')} UTC" if st.next_slot else "")})
     meta = MetadataManager.from_db(db)

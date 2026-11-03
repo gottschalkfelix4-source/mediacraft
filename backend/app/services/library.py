@@ -150,6 +150,10 @@ def delete_movie(db: Session, movie: Movie, delete_files: bool = False) -> None:
         if f:
             db.delete(f)
     db.query(MediaFile).filter(MediaFile.movie_id == movie.id).delete()
+    from .notifications import notify
+
+    notify("delete", f"Film gelöscht: {movie.title} ({movie.year})" + (" inkl. Dateien" if delete_files else ""),
+           {"title": movie.title})
     db.delete(movie)
     publish("movie.deleted", {"id": movie.id})
 
@@ -390,6 +394,10 @@ def delete_series(db: Session, series: Series, delete_files: bool = False) -> No
         e.file_id = None
     db.flush()
     db.query(MediaFile).filter(MediaFile.series_id == series.id).delete()
+    from .notifications import notify
+
+    notify("delete", f"Serie gelöscht: {series.title}" + (" inkl. Dateien" if delete_files else ""),
+           {"title": series.title})
     db.delete(series)
     publish("series.deleted", {"id": series.id})
 

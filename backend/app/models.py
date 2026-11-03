@@ -483,6 +483,9 @@ class Notification(Base):
     on_upgrade: Mapped[bool] = mapped_column(Boolean, default=True)
     on_failure: Mapped[bool] = mapped_column(Boolean, default=True)
     on_health: Mapped[bool] = mapped_column(Boolean, default=False)
+    on_delete: Mapped[bool] = mapped_column(Boolean, default=False)
+    on_rename: Mapped[bool] = mapped_column(Boolean, default=False)
+    on_limit: Mapped[bool] = mapped_column(Boolean, default=False)  # indexer quota at 90 % / used up
     settings: Mapped[dict] = mapped_column(JSON, default=dict)
 
 

@@ -201,7 +201,9 @@ def handle_failed(db: Session, q: QueueItem, reason: str, c: DownloadClient | No
                    episode_ids=q.episode_ids, source_title=q.title, quality=q.quality, indexer=q.indexer_name,
                    download_id=q.download_id, data={"reason": reason}))
     db.flush()
-    notify("failure", f"{q.title}: {reason}")
+    notify("failure", f"{q.title}: {reason}", {"movie_id": q.movie_id, "series_id": q.series_id,
+                                               "episode_ids": q.episode_ids or [], "release_title": q.title,
+                                               "download_id": q.download_id, "indexer": q.indexer_name})
     if c and c.remove_failed:
         _safe_remove(c, q, delete_data=True)
     if search_again if search_again is not None else cfg.get("redownload_failed", True):

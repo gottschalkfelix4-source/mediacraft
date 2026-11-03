@@ -116,8 +116,12 @@ def _poll_limits(db: Session):
 def _health(db: Session):
     issues = maintenance.health(db)
     old = {i["message"] for i in health_cache["issues"]}
+    old_keys = {i.get("key") for i in health_cache["issues"]}
     for i in issues:
-        if i["message"] not in old and i["level"] == "error":
+        if (i.get("key") or "").startswith("limit:"):
+            if i["key"] not in old_keys:  # once per indexer/kind when it reaches 90 % and again at 100 %
+                notify("limit", i["message"])
+        elif i["message"] not in old and i["level"] == "error":
             notify("health", i["message"])
     health_cache["issues"] = issues
     health_cache["checked"] = utcnow().isoformat() + "Z"
@@ -138,6 +142,19 @@ def _rename_movie(db: Session, movie_id: int):
 
 def _probe_files(db: Session, movie_id: int | None = None, series_id: int | None = None):
     return {"probed": maintenance.probe_missing(db, limit=100000, movie_id=movie_id, series_id=series_id, force=True)}
+
+
+def _rescan_movie(db: Session, movie_id: int):
+    m = db.get(Movie, movie_id)
+    return maintenance.scan_movie(db, m) if m else None
+
+
+def _rescan_series(db: Session, series_id: int):
+    s = db.get(Series, series_id)
+    if not s:
+        return None
+    res = maintenance.scan_series(db, s)
+    return {k: (len(v) if isinstance(v, list) else v) for k, v in res.items()}
 
 
 def register_all() -> None:
@@ -163,3 +180,5 @@ def register_all() -> None:
     commands.register("process_pending", delay.process_pending)
     commands.register("import_lists", importlists.sync_all)
     commands.register("probe_files", _probe_files)
+    commands.register("rescan_movie", _rescan_movie)
+    commands.register("rescan_series", _rescan_series)

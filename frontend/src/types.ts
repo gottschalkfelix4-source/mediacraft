@@ -512,6 +512,9 @@ export interface NotificationBase {
   on_upgrade: boolean;
   on_failure: boolean;
   on_health: boolean;
+  on_delete: boolean;
+  on_rename: boolean;
+  on_limit: boolean;
   settings: Record<string, string>;
 }
 

@@ -497,11 +497,25 @@ def delete_mapping(mid: int, db: Session = Depends(get_db)):
 
 
 # ===================================================================================== notifications
-NOTIF_FIELDS = ("name", "kind", "enabled", "on_grab", "on_import", "on_upgrade", "on_failure", "on_health", "settings")
+NOTIF_FIELDS = ("name", "kind", "enabled", "on_grab", "on_import", "on_upgrade", "on_failure", "on_health", "on_delete",
+                "on_rename", "on_limit", "settings")
 
 
 def notif_to_dict(n: Notification) -> dict:
-    return {"id": n.id, **{f: getattr(n, f) for f in NOTIF_FIELDS}}
+    d = {"id": n.id, **{f: getattr(n, f) for f in NOTIF_FIELDS}}
+    d["settings"] = {k: (MASK if k in notif.SECRET_FIELDS and v else v) for k, v in (n.settings or {}).items()}
+    return d
+
+
+def _notif_body(body: dict, saved: Notification | None) -> dict:
+    """Masked secrets coming back from the UI keep their stored value."""
+    body = dict(body)
+    settings = dict(body.get("settings") or {})
+    for k in notif.SECRET_FIELDS:
+        if settings.get(k) == MASK:
+            settings[k] = (saved.settings or {}).get(k, "") if saved else ""
+    body["settings"] = settings
+    return body
 
 
 @router.get("/notifications")
@@ -516,7 +530,7 @@ def notification_schema():
 
 @router.post("/notifications")
 def create_notification(body: dict, db: Session = Depends(get_db)):
-    n = apply(Notification(), body, NOTIF_FIELDS)
+    n = apply(Notification(), _notif_body(body, None), NOTIF_FIELDS)
     db.add(n)
     db.flush()
     return notif_to_dict(n)
@@ -524,7 +538,8 @@ def create_notification(body: dict, db: Session = Depends(get_db)):
 
 @router.put("/notifications/{nid}")
 def update_notification(nid: int, body: dict, db: Session = Depends(get_db)):
-    n = apply(get_or_404(db, Notification, nid), body, NOTIF_FIELDS)
+    n = get_or_404(db, Notification, nid)
+    apply(n, _notif_body(body, n), NOTIF_FIELDS)
     return notif_to_dict(n)
 
 
@@ -535,8 +550,9 @@ def delete_notification(nid: int, db: Session = Depends(get_db)):
 
 
 @router.post("/notifications/test")
-def test_notification(body: dict):
-    n = apply(Notification(), body, NOTIF_FIELDS)
+def test_notification(body: dict, db: Session = Depends(get_db)):
+    saved = db.get(Notification, body["id"]) if body.get("id") else None
+    n = apply(Notification(), _notif_body(body, saved), NOTIF_FIELDS)
     try:
         notif.test(n)
         return {"ok": True}

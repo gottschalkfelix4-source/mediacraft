@@ -235,7 +235,9 @@ def import_movie_file(db: Session, movie: Movie, src: str, p: ParsedRelease, *, 
     log.info("Importiert (%s): %s → %s", method, os.path.basename(src), dest)
     publish("movie.updated", {"id": movie.id})
     notify("upgrade" if upgraded else "import", f"{movie.title} ({movie.year}) – {p.quality}",
-           {"title": movie.title, "path": dest, "poster": (movie.images or {}).get("poster")})
+           {"title": movie.title, "path": dest, "poster": (movie.images or {}).get("poster"), "movie_id": movie.id,
+            "file_id": mf.id, "quality": p.quality, "release_title": info["release_name"],
+            "download_id": queue_item.download_id if queue_item else None})
     return mf
 
 
@@ -301,7 +303,9 @@ def import_episode_file(db: Session, series: Series, episodes: list[Episode], sr
     log.info("Importiert (%s): %s %s → %s", method, series.title, label, dest)
     publish("series.updated", {"id": series.id})
     notify("upgrade" if upgraded else "import", f"{series.title} {label} – {p.quality}",
-           {"title": series.title, "path": dest, "poster": (series.images or {}).get("poster")})
+           {"title": series.title, "path": dest, "poster": (series.images or {}).get("poster"), "series_id": series.id,
+            "episode_ids": [e.id for e in episodes], "file_id": mf.id, "quality": p.quality,
+            "release_title": info["release_name"], "download_id": queue_item.download_id if queue_item else None})
     return mf
 
 
@@ -517,4 +521,8 @@ def rename_apply(db: Session, movie: Movie | None = None, series: Series | None 
         except OSError as e:
             log.warning("Umbenennen fehlgeschlagen: %s", e)
     db.flush()
+    if n:
+        target = movie or series
+        notify("rename", f"{target.title}: {n} Datei(en) umbenannt",
+               {"movie_id": movie.id if movie else None, "series_id": series.id if series else None})
     return n

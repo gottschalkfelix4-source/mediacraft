@@ -17,7 +17,7 @@ def _cond_matches(cond: dict, p: ParsedRelease, size: int = 0, protocol: str = "
         if t == "title":
             return re.search(v, p.raw, re.I) is not None
         if t == "group":
-            return bool(p.release_group) and re.fullmatch(v, p.release_group, re.I) is not None
+            return bool(p.release_group) and re.search(v, p.release_group, re.I) is not None
         if t == "source":
             return p.source == v.lower()
         if t == "resolution":
@@ -52,6 +52,8 @@ def matches(fmt: dict, p: ParsedRelease, size: int = 0, protocol: str = "", flag
         return False
     by_type: dict[str, list[bool]] = {}
     for c in conds:
+        if c.get("unsupported") and not c.get("required"):
+            continue  # imported from Sonarr/Radarr, can't be evaluated – optional ones don't count
         ok = _cond_matches(c, p, size, protocol, flags)
         if c.get("negate"):
             ok = not ok

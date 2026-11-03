@@ -96,5 +96,7 @@ def grab(db: Session, r: Release, *, quality: str, languages: list[str], format_
     publish("queue.updated", {"id": item.id})
     notify("grab", f"{name}: {r.title} ({quality}) via {idx.name}",
            {"title": r.title, "quality": quality, "indexer": idx.name,
-            "poster": (target.images or {}).get("poster") if target else None})
+            "poster": (target.images or {}).get("poster") if target else None, "movie_id": movie_id,
+            "series_id": series_id, "episode_ids": episode_ids or [], "release_title": r.title, "size": r.size,
+            "download_id": item.download_id, "download_client": client_cfg.name})
     return {"queue_id": item.id, "download_id": item.download_id, "client": client_cfg.name, "title": r.title}
