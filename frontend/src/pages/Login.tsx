@@ -2,6 +2,7 @@ import { useState } from "react";
 import { LogIn } from "lucide-react";
 import { api, errorMessage } from "../api";
 import { Spinner } from "../components/ui";
+import { BrandMark } from "../components/BrandMark";
 
 export function Login({ onDone }: { onDone: () => void }) {
   const [username, setUsername] = useState("");
@@ -28,7 +29,7 @@ export function Login({ onDone }: { onDone: () => void }) {
     <div className="login-page">
       <form className="login-card" onSubmit={submit}>
         <div className="brand brand-login">
-          <div className="brand-logo">M</div>
+          <div className="brand-logo"><BrandMark /></div>
           <div className="brand-text">MediaCraft</div>
         </div>
         <p className="muted">Bitte anmelden</p>

@@ -7,6 +7,7 @@ import {
 import { api } from "../api";
 import type { Appearance } from "../appearance";
 import { AppearanceMenu } from "./Appearance";
+import { BrandMark } from "./BrandMark";
 import { useMovies, useSeriesList } from "../hooks";
 import { Poster } from "./Media";
 
@@ -78,7 +79,7 @@ export function Layout({ children, appearance, onLogout, connected, authMethod, 
     <div className={`app ${drawer ? "drawer-open" : ""}`}>
       <aside className="sidebar" aria-label="Hauptnavigation">
         <div className="brand">
-          <div className="brand-logo">M</div>
+          <div className="brand-logo"><BrandMark /></div>
           <div className="brand-text">
             MediaCraft
             {version && <span className="brand-ver">v{version}</span>}

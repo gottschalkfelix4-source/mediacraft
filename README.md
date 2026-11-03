@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="unraid/mediacraft.png" width="96" alt="MediaCraft Logo">
+  <img src="docs/logo.svg" width="112" alt="MediaCraft Logo">
 </p>
 
 <h1 align="center">MediaCraft</h1>
