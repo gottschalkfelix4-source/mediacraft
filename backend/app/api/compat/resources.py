@@ -1,27 +1,14 @@
 """Sonarr/Radarr v3 resource shapes (movie, series, episode, queue)."""
 from __future__ import annotations
 
-import os
 import re
-from datetime import datetime, timedelta
-from typing import Optional
+from datetime import timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
-from ... import config
-from ...core import qualities
-from ...core.scheduler import commands
-from ...db import get_db
-from ...indexers import newznab
-from ...metadata.manager import MetadataManager
-from ...models import (DownloadClient, Episode, Indexer, MediaFile, Movie, QualityProfile, QueueItem, RootFolder,
-                      Series, Tag, iso, utcnow)
-from ...services import library, maintenance
-from ...services.commands import health_cache
-from ..deps import require_api_key
-from .base import (_images, _quality, _languages, _slug)  # noqa: F401
+from ...models import (DownloadClient, Episode, MediaFile, Movie, QueueItem, Series, iso, utcnow)
+from ...services import library
+from .base import (_images, _quality, _languages, _slug)
 
 
 def _queue_records(db: Session, flavor: str, include_detail: bool) -> list[dict]:

@@ -13,7 +13,7 @@ from ..db import session_scope
 from ..indexers import newznab, usage
 from ..indexers.newznab import IndexerError
 from ..indexers.usage import LimitReached
-from ..models import Episode, Indexer, Movie, Series, utcnow
+from ..models import Indexer, Movie, Series, utcnow
 from . import delay
 from . import search as search_svc
 from .grab import grab_decision

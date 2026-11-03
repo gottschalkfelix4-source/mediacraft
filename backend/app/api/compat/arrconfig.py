@@ -17,7 +17,7 @@ from ...core import qualities
 from ...core import settings as settings_mod
 from ...db import get_db
 from ...models import CustomFormat, Episode, History, MediaFile, Movie, QualityProfile, Series, iso
-from .base import LANG_IDS, _languages, _paged, _profiles, _quality
+from .base import LANG_IDS, _languages, _profiles, _quality
 
 # ---------------------------------------------------------------------------------- custom formats
 # Source enums differ between Radarr and Sonarr

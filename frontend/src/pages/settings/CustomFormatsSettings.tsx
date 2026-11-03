@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { Plus, Pencil, Trash2, Save, FlaskConical, CheckCircle2, XCircle } from "lucide-react";
+import { Plus, Pencil, Trash2, Save, FlaskConical, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
 import { api, errorMessage } from "../../api";
 import { Badge, Empty, ErrorBox, Field, Loading, Select, Spinner, TextInput, KV } from "../../components/ui";
 import { Modal, useConfirm } from "../../components/Modal";
-import { useApiMutation, useCustomFormats } from "../../hooks";
+import { useApiMutation, useCommand, useCustomFormats } from "../../hooks";
 import { useToast } from "../../components/Toast";
 import { fmtSize, langLabel } from "../../format";
 import { Section } from "./common";
@@ -28,6 +28,7 @@ export function CustomFormatsSettings() {
   const { data, isLoading, error } = useCustomFormats();
   const [editing, setEditing] = useState<Partial<CustomFormat> | null>(null);
   const confirm = useConfirm();
+  const command = useCommand();
   const del = useApiMutation((id: number) => api.deleteCustomFormat(id), { invalidate: [["customformats"], ["profiles"]], success: "Custom Format gelöscht" });
 
   return (
@@ -36,9 +37,14 @@ export function CustomFormatsSettings() {
         title="Custom Formats"
         help="Ein Format trifft zu, wenn alle Pflicht-Bedingungen passen und je Bedingungstyp mindestens eine der übrigen. Scores werden pro Profil vergeben."
         actions={
-          <button className="btn btn-primary" onClick={() => setEditing({ name: "", conditions: [] })}>
-            <Plus size={15} /> Neues Format
-          </button>
+          <div className="row gap-sm">
+            <button className="btn" onClick={() => command("rescore_files")} title="Custom-Format-Score aller vorhandenen Dateien mit den aktuellen Formaten neu berechnen">
+              <RefreshCw size={15} /> Scores neu berechnen
+            </button>
+            <button className="btn btn-primary" onClick={() => setEditing({ name: "", conditions: [] })}>
+              <Plus size={15} /> Neues Format
+            </button>
+          </div>
         }
       >
         {isLoading && <Loading />}

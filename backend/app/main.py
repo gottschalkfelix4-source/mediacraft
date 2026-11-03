@@ -26,6 +26,10 @@ async def lifespan(_app: FastAPI):
     init_db()
     register_all()
     commands.start()
+    rescore = config.CONFIG_DIR / ".rescore"
+    if rescore.exists():  # requested by a migration (custom formats changed)
+        commands.enqueue("rescore_files")
+        rescore.unlink()
     if not config.DISABLE_SCHEDULER:
         scheduler.start()
     log.info("%s %s gestartet – Port %s, Config %s", config.APP_NAME, config.VERSION, config.PORT, config.CONFIG_DIR)

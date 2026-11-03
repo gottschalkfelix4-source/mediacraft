@@ -2,27 +2,17 @@
 from __future__ import annotations
 
 import os
-import re
-from datetime import datetime, timedelta
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
-from ... import config
-from ...core import qualities
 from ...core.scheduler import commands
 from ...db import get_db
 from ...indexers import newznab
-from ...metadata.manager import MetadataManager
-from ...models import (DownloadClient, Episode, Indexer, MediaFile, Movie, QualityProfile, QueueItem, RootFolder,
-                      Series, Tag, iso, utcnow)
-from ...services import library, maintenance
-from ...services.commands import health_cache
-from ..deps import require_api_key
-from .base import (_cmd_resource, _status, _root_folders, _profiles, _tags, _create_tag, _health, _paged, _schema, indexer_resource, _apply_indexer)  # noqa: F401
-from .resources import (_queue_records)  # noqa: F401
+from ...models import (DownloadClient, Indexer, RootFolder)
+from .base import (_cmd_resource, _status, _root_folders, _profiles, _tags, _create_tag, _health, _paged, _schema, indexer_resource, _apply_indexer)
+from .resources import (_queue_records)
 
 
 def _register_common(router: APIRouter, flavor: str) -> None:

@@ -10,7 +10,7 @@ from ..core import settings as settings_mod
 from ..core.scheduler import commands
 from ..indexers import newznab, usage
 from ..metadata.manager import MetadataManager
-from ..models import Episode, Indexer, Movie, Series, utcnow
+from ..models import Indexer, Movie, Series, utcnow
 from . import backup, delay, importlists, library, maintenance, queue, rss, search
 from .notifications import notify
 
@@ -182,3 +182,4 @@ def register_all() -> None:
     commands.register("probe_files", _probe_files)
     commands.register("rescan_movie", _rescan_movie)
     commands.register("rescan_series", _rescan_series)
+    commands.register("rescore_files", maintenance.rescore_files)

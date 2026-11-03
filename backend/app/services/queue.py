@@ -192,7 +192,6 @@ def handle_failed(db: Session, q: QueueItem, reason: str, c: DownloadClient | No
     q.messages = (q.messages or []) + [reason]
     q.finished = utcnow()
     if blocklist:
-        hist = db.query(History).filter(History.download_id == q.download_id, History.event == "grabbed").first()
         db.add(Blocklist(media_type=q.media_type, movie_id=q.movie_id, series_id=q.series_id,
                          episode_ids=q.episode_ids, source_title=q.title, guid=q.guid,
                          info_hash=q.download_id if q.protocol == "torrent" else None,

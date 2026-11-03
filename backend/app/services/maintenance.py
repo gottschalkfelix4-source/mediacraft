@@ -5,7 +5,6 @@ import logging
 import os
 import re
 import shutil
-import time
 from datetime import timedelta
 
 from sqlalchemy.orm import Session
@@ -19,7 +18,7 @@ from ..downloadclients.base import ClientError
 from ..downloadclients.manager import get_client
 from ..indexers import usage
 from ..metadata.manager import MetadataManager
-from ..models import (DownloadClient, Episode, Indexer, IndexerEvent, MediaFile, MetadataCache, Movie, QualityProfile,
+from ..models import (CustomFormat, DownloadClient, Indexer, IndexerEvent, MediaFile, MetadataCache, Movie, QualityProfile,
                       QueueItem, RootFolder, Series, utcnow)
 from .importer import probe_file, video_files
 
@@ -114,6 +113,27 @@ def scan_all(db: Session) -> dict:
     db.commit()
     total["probed"] = probe_missing(db)
     return total
+
+
+def rescore_files(db: Session) -> dict:
+    """Recompute the custom format score of every library file (after format changes)."""
+    formats = [cf.to_dict() for cf in db.query(CustomFormat).all()]
+    profiles = {p.id: p for p in db.query(QualityProfile).all()}
+    movie_profile = {m.id: m.quality_profile_id for m in db.query(Movie).all()}
+    series_profile = {s.id: s.quality_profile_id for s in db.query(Series).all()}
+    changed = 0
+    for f in db.query(MediaFile).all():
+        pid = movie_profile.get(f.movie_id) if f.movie_id else series_profile.get(f.series_id)
+        profile = profiles.get(pid)
+        if not profile:
+            continue
+        p = parse(f.release_name) if f.release_name else parse_path(f.path)
+        score, _ = customformats.evaluate(formats, profile.format_scores or {}, p, f.size or 0)
+        if score != f.format_score:
+            f.format_score = score
+            changed += 1
+    db.commit()
+    return {"files": db.query(MediaFile).count(), "changed": changed}
 
 
 def probe_missing(db: Session, limit: int = 300, movie_id: int | None = None, series_id: int | None = None,

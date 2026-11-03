@@ -6,6 +6,10 @@ from sqlalchemy.orm import Session
 from ..models import CustomFormat, DelayProfile, QualityProfile
 from .qualities import default_profile_items
 
+# "DL" must not be the one in "WEB-DL"/"WEB.DL"
+GERMAN_DL_REGEX = r"(?<!WEB[-.])\b(DL|ML|Dual)\b"
+OLD_GERMAN_DL_REGEX = r"\b(DL|ML|Dual)\b"
+
 _PROFILES = [
     ("Any", ["SDTV", "DVD", "WEBDL-480p", "WEBRip-480p", "Bluray-480p", "Bluray-576p", "HDTV-720p", "WEBRip-720p",
              "WEBDL-720p", "Bluray-720p", "HDTV-1080p", "WEBRip-1080p", "WEBDL-1080p", "Bluray-1080p"], "WEBDL-1080p"),
@@ -19,7 +23,7 @@ _PROFILES = [
 
 _FORMATS = [
     ("German DL", [{"type": "language", "value": "german", "required": True},
-                   {"type": "title", "value": r"\b(DL|ML|Dual)\b", "required": True}]),
+                   {"type": "title", "value": GERMAN_DL_REGEX, "required": True}]),
     ("German", [{"type": "language", "value": "german", "required": True}]),
     ("HDR", [{"type": "hdr", "value": "HDR10"}, {"type": "hdr", "value": "HDR10+"}, {"type": "hdr", "value": "HDR"}]),
     ("Dolby Vision", [{"type": "hdr", "value": "DV", "required": True}]),

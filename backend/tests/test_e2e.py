@@ -178,6 +178,5 @@ def test_series_season_pack_and_grab_limit(setup):
 
     # with the grab limit exhausted, further decisions are rejected temporarily
     with session_scope() as s:
-        movie = s.get(Movie, setup["movie_id"])
         ctx = dec.Context(s)
         assert not ctx.grab_allowed(s.query(Indexer).filter(Indexer.name == "FakeTM").one().id)

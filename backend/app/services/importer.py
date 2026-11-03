@@ -422,7 +422,6 @@ def _process_download(db: Session, q: QueueItem, path: str, mode: str) -> tuple[
 # ------------------------------------------------------------------------------------- manual import
 def scan_for_manual_import(db: Session, path: str) -> list[dict]:
     """Suggest a mapping for every video file below ``path``."""
-    from ..core.parser import normalize_title
 
     cfg = settings_mod.get(db, "media")
     files = video_files(path, cfg.get("sample_max_mb", 150))

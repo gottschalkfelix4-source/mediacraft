@@ -75,8 +75,32 @@ def _m1_noop(conn: Connection) -> None:
     """Baseline: databases from before the migration system."""
 
 
+def _m2_german_dl_regex(conn: Connection) -> None:
+    """The seeded "German DL" format matched every German WEB-DL (the "DL" in "WEB-DL")."""
+    from .seed import GERMAN_DL_REGEX, OLD_GERMAN_DL_REGEX
+
+    for fid, raw in conn.exec_driver_sql("SELECT id, conditions FROM custom_formats").fetchall():
+        conds = json.loads(raw) if isinstance(raw, str) else (raw or [])
+        changed = False
+        for c in conds:
+            if c.get("type") == "title" and c.get("value") == OLD_GERMAN_DL_REGEX:
+                c["value"] = GERMAN_DL_REGEX
+                changed = True
+        if changed:
+            conn.exec_driver_sql("UPDATE custom_formats SET conditions = ? WHERE id = ?", (json.dumps(conds), fid))
+            request_rescore()
+
+
+def request_rescore() -> None:
+    """Stored custom format scores of library files are stale – recompute them after start-up."""
+    from ..config import CONFIG_DIR
+
+    (CONFIG_DIR / ".rescore").write_text("1", "utf-8")
+
+
 MIGRATIONS: list[tuple[int, str, Callable[[Connection], None]]] = [
     (1, "Baseline", _m1_noop),
+    (2, "German-DL-Format trifft nicht mehr auf WEB-DL zu", _m2_german_dl_regex),
 ]
 LATEST = MIGRATIONS[-1][0]
 

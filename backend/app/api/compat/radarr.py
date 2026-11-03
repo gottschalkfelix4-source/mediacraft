@@ -1,8 +1,6 @@
 """Radarr-only endpoints (movies, movie files, calendar, commands)."""
 from __future__ import annotations
 
-import os
-import re
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -10,19 +8,13 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
-from ... import config
-from ...core import qualities
 from ...core.scheduler import commands
 from ...db import get_db
-from ...indexers import newznab
 from ...metadata.manager import MetadataManager
-from ...models import (DownloadClient, Episode, Indexer, MediaFile, Movie, QualityProfile, QueueItem, RootFolder,
-                      Series, Tag, iso, utcnow)
+from ...models import (Movie, utcnow)
 from ...services import library, maintenance
-from ...services.commands import health_cache
-from ..deps import require_api_key
-from .base import (_cmd_resource, _resolve_root, _paged)  # noqa: F401
-from .resources import (movie_resource, _meta_to_movie)  # noqa: F401
+from .base import (_cmd_resource, _resolve_root, _paged)
+from .resources import (movie_resource, _meta_to_movie)
 
 
 def _register_radarr(router: APIRouter) -> None:

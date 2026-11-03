@@ -205,7 +205,9 @@ def _fetch_json_url(db, lst, s):
     for row in data or []:
         if not isinstance(row, dict):
             continue
-        get = lambda *keys: next((row[k] for k in keys if row.get(k)), None)  # noqa: E731
+        def get(*keys, row=row):
+            return next((row[k] for k in keys if row.get(k)), None)
+
         ids = {"tmdb": get("tmdb_id", "tmdbId", "tmdb"), "imdb": get("imdb_id", "imdbId", "imdb"),
                "tvdb": get("tvdb_id", "tvdbId", "tvdb")}
         for k in ("tmdb", "tvdb"):
