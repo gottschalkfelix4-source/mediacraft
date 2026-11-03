@@ -5,9 +5,9 @@ import { api, onUnauthorized } from "./api";
 import { Layout } from "./components/Layout";
 import { Loading } from "./components/ui";
 import { useLiveEvents } from "./events";
-import { useStored } from "./hooks";
+import { useAppearance } from "./appearance";
 import { Login } from "./pages/Login";
-import { Dashboard } from "./pages/Dashboard";
+import { Dashboard } from "./pages/dashboard/DashboardPage";
 import { MoviesPage } from "./pages/library/MoviesPage";
 import { AddMovie } from "./pages/library/AddMovie";
 import { MovieDetail } from "./pages/library/MovieDetail";
@@ -25,14 +25,10 @@ import { SettingsRoutes } from "./pages/settings/SettingsRoutes";
 import { SystemRoutes } from "./pages/system/SystemRoutes";
 
 export function App() {
-  const [theme, setTheme] = useStored<"dark" | "light">("mc-theme", "dark");
+  const appearance = useAppearance();
   const qc = useQueryClient();
   const auth = useQuery({ queryKey: ["auth"], queryFn: api.authStatus, staleTime: Infinity, retry: 1 });
   const [needLogin, setNeedLogin] = useState(false);
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-  }, [theme]);
 
   useEffect(() => {
     onUnauthorized(() => setNeedLogin(true));
@@ -74,8 +70,7 @@ export function App() {
 
   return (
     <Layout
-      theme={theme}
-      onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")}
+      appearance={appearance}
       onLogout={logout}
       connected={connected}
       authMethod={auth.data?.method ?? "none"}

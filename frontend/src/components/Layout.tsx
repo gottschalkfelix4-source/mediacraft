@@ -5,6 +5,8 @@ import {
   LayoutDashboard, BarChart3, Film, Tv, Plus, ArrowRight, CalendarDays, Activity, SearchX, Rss, Settings, Server, Menu, X, Search, Sun, Moon, LogOut, Wifi, WifiOff,
 } from "lucide-react";
 import { api } from "../api";
+import type { Appearance } from "../appearance";
+import { AppearanceMenu } from "./Appearance";
 import { useMovies, useSeriesList } from "../hooks";
 import { Poster } from "./Media";
 
@@ -42,10 +44,9 @@ export const SYSTEM_NAV = [
   { to: "/system/manualimport", label: "Manueller Import" },
 ];
 
-export function Layout({ children, theme, onToggleTheme, onLogout, connected, authMethod, version }: {
+export function Layout({ children, appearance, onLogout, connected, authMethod, version }: {
   children: ReactNode;
-  theme: "dark" | "light";
-  onToggleTheme: () => void;
+  appearance: Appearance;
   onLogout: () => void;
   connected: boolean;
   authMethod: string;
@@ -123,8 +124,14 @@ export function Layout({ children, theme, onToggleTheme, onLogout, connected, au
           </button>
           <GlobalSearch />
           <div className="topbar-actions">
-            <button className="icon-btn" onClick={onToggleTheme} title={theme === "dark" ? "Helles Design" : "Dunkles Design"} aria-label="Design umschalten">
-              {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+            <AppearanceMenu appearance={appearance} />
+            <button
+              className="icon-btn"
+              onClick={() => appearance.setTheme(appearance.theme === "dark" ? "light" : "dark")}
+              title={appearance.theme === "dark" ? "Helles Design" : "Dunkles Design"}
+              aria-label="Design umschalten"
+            >
+              {appearance.theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
             </button>
             {authMethod === "forms" && (
               <button className="icon-btn" onClick={onLogout} title="Abmelden" aria-label="Abmelden">

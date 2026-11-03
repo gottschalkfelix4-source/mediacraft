@@ -1,6 +1,7 @@
-import { useState, type ReactNode, type InputHTMLAttributes, type SelectHTMLAttributes } from "react";
+import { useEffect, useRef, useState, type ReactNode, type InputHTMLAttributes, type SelectHTMLAttributes } from "react";
 import { Loader2, AlertTriangle, Inbox } from "lucide-react";
 import { errorMessage } from "../api";
+import { motionReduced } from "../appearance";
 
 export function Spinner({ size = 18, label }: { size?: number; label?: string }) {
   return (
@@ -292,4 +293,42 @@ export function Pager({ page, pages, onPage }: { page: number; pages: number; on
       </button>
     </div>
   );
+}
+
+/** Shimmering placeholder lines while a widget loads. */
+export function Skeleton({ lines = 3 }: { lines?: number }) {
+  return (
+    <div className="skeleton" aria-busy="true" aria-label="Lade…">
+      {Array.from({ length: lines }, (_, i) => (
+        <div key={i} className="skeleton-line" />
+      ))}
+    </div>
+  );
+}
+
+/** Number that counts up (from 0, later from its previous value) to `value`. */
+export function CountUp({ value, format = (n) => String(Math.round(n)), duration = 900 }: { value: number; format?: (n: number) => string; duration?: number }) {
+  const [shown, setShown] = useState(() => (motionReduced() ? value : 0));
+  const from = useRef(shown);
+
+  useEffect(() => {
+    if (motionReduced()) {
+      setShown(value);
+      return;
+    }
+    const start = performance.now();
+    const a = from.current;
+    let raf = 0;
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - start) / duration);
+      const v = a + (value - a) * (1 - Math.pow(1 - p, 3));
+      from.current = v;
+      setShown(v);
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value, duration]);
+
+  return <span className="count-up">{format(shown)}</span>;
 }

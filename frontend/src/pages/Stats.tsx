@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { BarChart3, Film, HardDrive, Tv } from "lucide-react";
 import { api } from "../api";
@@ -72,7 +72,9 @@ export function StatsPage() {
         <>
           <div className="stat-grid">
             <div className="stat">
-              <Film size={22} className="stat-icon" />
+              <span className="stat-icon">
+                <Film size={20} />
+              </span>
               <div>
                 <div className="stat-value">{fmtNumber(data.library.movies)}</div>
                 <div className="stat-label">Filme</div>
@@ -81,8 +83,10 @@ export function StatsPage() {
                 </div>
               </div>
             </div>
-            <div className="stat">
-              <Tv size={22} className="stat-icon" />
+            <div className="stat" style={{ "--i": 1, "--tile": "var(--accent-2)" } as CSSProperties}>
+              <span className="stat-icon">
+                <Tv size={20} />
+              </span>
               <div>
                 <div className="stat-value">{fmtNumber(data.library.series)}</div>
                 <div className="stat-label">Serien</div>
@@ -91,16 +95,20 @@ export function StatsPage() {
                 </div>
               </div>
             </div>
-            <div className="stat">
-              <HardDrive size={22} className="stat-icon" />
+            <div className="stat" style={{ "--i": 2, "--tile": "var(--info)" } as CSSProperties}>
+              <span className="stat-icon">
+                <HardDrive size={20} />
+              </span>
               <div>
                 <div className="stat-value">{fmtSize(data.library.total_size)}</div>
                 <div className="stat-label">Bibliothek</div>
                 <div className="stat-sub">{fmtNumber(data.library.files)} Dateien</div>
               </div>
             </div>
-            <div className="stat">
-              <BarChart3 size={22} className="stat-icon" />
+            <div className="stat" style={{ "--i": 3, "--tile": "var(--violet)" } as CSSProperties}>
+              <span className="stat-icon">
+                <BarChart3 size={20} />
+              </span>
               <div>
                 <div className="stat-value">{fmtNumber(data.weeks.reduce((n, w) => n + w.grabs, 0))}</div>
                 <div className="stat-label">Grabs</div>

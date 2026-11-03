@@ -6,6 +6,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#111827" />
     <title>MediaCraft</title>
+    <script>
+      // apply the stored look before the first paint (no dark→light flash); useAppearance() keeps it in sync
+      try {
+        var get = function (k, d) { var v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); };
+        var ds = document.documentElement.dataset;
+        ds.theme = get("mc-theme", "dark");
+        ds.accent = get("mc-accent", "teal");
+        ds.fx = get("mc-effects", true) ? "on" : "off";
+        ds.motion = get("mc-motion", true) ? "on" : "off";
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>
