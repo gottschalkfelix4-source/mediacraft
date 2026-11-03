@@ -238,6 +238,9 @@ def _tv_plan(idx: Indexer, series: Series, episodes: list[Episode]) -> list[list
                     alts.append({"t": "tvsearch", **id_param, "season": e.season, "ep": e.number, "cat": cat})
                 alts.append({"t": "tvsearch", "q": title, "season": e.season, "ep": e.number, "cat": cat}
                             if tv_q else {"t": "search", "q": f"{title} S{e.season:02d}E{e.number:02d}", "cat": cat})
+                if e.absolute_number and e.absolute_number != e.number:
+                    # long runners released with absolute numbers only; tried only when nothing else was found
+                    alts.append({"t": "search", "q": f"{title} {e.absolute_number:02d}", "cat": cat})
                 plans.append(alts)
     return plans
 

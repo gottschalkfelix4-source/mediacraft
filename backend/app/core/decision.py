@@ -12,7 +12,8 @@ from ..indexers.newznab import Release
 from ..models import Blocklist, CustomFormat, Episode, Indexer, MediaFile, Movie, QualityProfile, QueueItem, Series, utcnow
 from . import customformats, qualities
 from . import settings as settings_mod
-from .parser import ParsedRelease, normalize_title, parse, title_variants
+from .parser import (ParsedRelease, find_absolute, has_episode_info, normalize_title, parse, title_variants,
+                     with_absolute)
 
 ACTIVE_QUEUE = ("grabbed", "queued", "downloading", "paused", "completed", "importing", "warning", "import_blocked")
 
@@ -259,17 +260,31 @@ def evaluate_movie(ctx: Context, movie: Movie, r: Release, p: ParsedRelease | No
 
 
 # ------------------------------------------------------------------------------------------ series
-def series_title_matches(series: Series, p: ParsedRelease, r: Release | None = None) -> bool:
-    if r and r.tvdb_id and series.tvdb_id:
-        return r.tvdb_id == series.tvdb_id
-    if r and r.tvmaze_id and series.tvmaze_id:
-        return r.tvmaze_id == series.tvmaze_id
+def series_names(series: Series) -> set[str]:
     names = set()
     for t in [series.title, series.original_title, *(series.alt_titles or [])]:
         if t:
             names |= title_variants(t)
             if series.year:
                 names.add(normalize_title(f"{t} {series.year}"))
+    return names
+
+
+def refine_for_series(series: Series, p: ParsedRelease) -> ParsedRelease:
+    """Re-read releases without season/episode info that carry an absolute number right after the
+    series title ("One.Piece.1017.German.1080p.WEB"). Needs the series to tell them from movies."""
+    if has_episode_info(p):
+        return p
+    hit = find_absolute(p.raw, series_names(series))
+    return with_absolute(p, hit[1], hit[2]) if hit else p
+
+
+def series_title_matches(series: Series, p: ParsedRelease, r: Release | None = None) -> bool:
+    if r and r.tvdb_id and series.tvdb_id:
+        return r.tvdb_id == series.tvdb_id
+    if r and r.tvmaze_id and series.tvmaze_id:
+        return r.tvmaze_id == series.tvmaze_id
+    names = series_names(series)
     clean = p.clean_title
     if p.year and clean + str(p.year) in names:
         return True
@@ -296,15 +311,19 @@ def map_episodes(series: Series, p: ParsedRelease, episodes: list[Episode] | Non
         s = p.seasons[0]
         wanted = set(p.episodes)
         found = [e for e in eps if e.season == s and e.number in wanted]
-        if not found and series.series_type == "anime":
-            found = [e for e in eps if e.absolute_number in wanted]
+        if not found:
+            # "One.Piece.S21E1017": absolute number in the episode slot. For non-anime series only when the
+            # number is beyond the season's episodes, so a not yet refreshed season can't map to old episodes.
+            in_season = [e.number for e in eps if e.season == s]
+            if series.series_type == "anime" or in_season and min(wanted) > max(in_season):
+                found = [e for e in eps if e.absolute_number in wanted]
         return found
     return []
 
 
 def evaluate_episodes(ctx: Context, series: Series, r: Release, p: ParsedRelease | None = None,
                       target_ids: set[int] | None = None) -> Decision:
-    p = p or parse(r.title)
+    p = refine_for_series(series, p or parse(r.title))
     d = Decision(release=r, parsed=p, series_id=series.id)
     profile = ctx.profiles[series.quality_profile_id]
     if not p.is_tv:

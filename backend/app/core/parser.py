@@ -505,6 +505,65 @@ def parse(release: str) -> ParsedRelease:
     return p
 
 
+# ------------------------------------------------------------------------- absolute numbers after a known title
+_TOKEN_RE = re.compile(r"[^ ._\-\[\]()]+")
+_EP_WORDS = {"e", "ep", "episode", "folge", "episodio"}
+_EP_PREFIX_RE = re.compile(r"(?:e|ep|episode|folge)(\d{1,4})", re.I)
+_EP_NUM_RE = re.compile(r"(?:e|ep)?(\d{1,4})", re.I)
+
+
+def has_episode_info(p: ParsedRelease) -> bool:
+    return p.is_tv and bool(p.episodes or p.absolute_episodes or p.air_date or p.full_season)
+
+
+def find_absolute(release: str, names) -> Optional[tuple[str, list[int], int]]:
+    """Scene names with absolute numbering and no season, e.g. ``One.Piece.1017.German.1080p.WEB``,
+    ``One.Piece.E1017...`` or ``One.Piece.Folge.1017...``.
+
+    Without knowing the series these are indistinguishable from movies ("Apollo.13"), so this only
+    looks for a number right after one of the given normalized series titles (``names``: any
+    container of :func:`normalize_title` values). Returns (matched name, numbers, title end) or None.
+    """
+    name = strip_extension(release.strip())
+    toks = list(_TOKEN_RE.finditer(name))
+    for i in range(1, len(toks)):
+        t = toks[i].group(0)
+        last = i
+        if t.isdigit() and 2 <= len(t) <= 4:
+            num = int(t)
+        elif _EP_PREFIX_RE.fullmatch(t):
+            num = int(_EP_PREFIX_RE.fullmatch(t).group(1))
+        elif t.lower() in _EP_WORDS and i + 1 < len(toks) and toks[i + 1].group(0).isdigit() \
+                and len(toks[i + 1].group(0)) <= 4:
+            num, last = int(toks[i + 1].group(0)), i + 1
+        else:
+            continue
+        key = normalize_title(name[:toks[i].start()])
+        if not key or key not in names:
+            continue
+        nums = [num]
+        # "1015-1017" / "E1015-E1017"
+        if last + 1 < len(toks) and "-" in name[toks[last].end():toks[last + 1].start()]:
+            m = _EP_NUM_RE.fullmatch(toks[last + 1].group(0))
+            if m and num < int(m.group(1)) <= num + 50:
+                nums = list(range(num, int(m.group(1)) + 1))
+        return key, nums, toks[i].start()
+    return None
+
+
+def with_absolute(p: ParsedRelease, nums: list[int], title_end: int) -> ParsedRelease:
+    """Copy of ``p`` re-read as a TV release with the given absolute episode numbers."""
+    from dataclasses import replace
+
+    name = strip_extension(p.raw.strip())
+    q = replace(p, is_tv=True, absolute_episodes=list(nums), episodes=[], seasons=[], air_date=None,
+                full_season=False, multi_season=False, complete_series=False, year=None,
+                languages=[], subbed=False)
+    _set_title(q, name[:title_end])
+    _parse_languages(name, q, title_end)
+    return q
+
+
 def parse_path(path: str) -> ParsedRelease:
     """Parse a file path: combine file name with parent folder name when the file name is obfuscated."""
     import os

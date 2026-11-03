@@ -16,9 +16,9 @@ from sqlalchemy.orm import Session
 
 from ..core import customformats, mediainfo, naming
 from ..core import settings as settings_mod
-from ..core.decision import map_episodes, movie_title_matches, series_title_matches
+from ..core.decision import map_episodes, movie_title_matches, refine_for_series, series_title_matches
 from ..core.events import publish
-from ..core.parser import VIDEO_EXTENSIONS, ParsedRelease, parse, parse_path
+from ..core.parser import VIDEO_EXTENSIONS, ParsedRelease, has_episode_info, parse, parse_path
 from ..models import Episode, History, MediaFile, Movie, QualityProfile, QueueItem, Series
 from .notifications import notify
 
@@ -381,11 +381,11 @@ def _process_download(db: Session, q: QueueItem, path: str, mode: str) -> tuple[
     series = db.get(Series, q.series_id)
     if not series:
         return False, ["Serie existiert nicht mehr in der Bibliothek"]
-    rp = parse(q.title)
+    rp = refine_for_series(series, parse(q.title))
     allowed = set(q.episode_ids or [])
     imported_any, missing = False, set(allowed)
     for src in files:
-        p = parse_path(src)
+        p = refine_for_series(series, parse_path(src))
         if not p.is_tv or not (p.episodes or p.absolute_episodes or p.air_date):
             # file without episode info inside a single-episode release
             if len(files) == 1 and rp.is_tv and (rp.episodes or rp.absolute_episodes or rp.air_date):
@@ -432,6 +432,11 @@ def scan_for_manual_import(db: Session, path: str) -> list[dict]:
         p = parse_path(f)
         item: dict = {"path": f, "size": os.path.getsize(f), "parsed": p.to_dict(), "quality": p.quality,
                       "languages": p.languages, "movie_id": None, "series_id": None, "episode_ids": [], "rejections": []}
+        if not has_episode_info(p):
+            s_abs = next((s for s in series_all if has_episode_info(refine_for_series(s, p))), None)
+            if s_abs:
+                p = refine_for_series(s_abs, p)
+                item.update(parsed=p.to_dict(), languages=p.languages)
         if p.is_tv:
             s = next((s for s in series_all if series_title_matches(s, p)), None)
             if s:

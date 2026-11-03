@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from ..core import decision as dec
 from ..core import settings as settings_mod
-from ..core.parser import parse, title_variants, normalize_title
+from ..core.parser import find_absolute, has_episode_info, normalize_title, parse, title_variants
 from ..db import session_scope
 from ..indexers import newznab, usage
 from ..indexers.newznab import IndexerError
@@ -78,6 +78,15 @@ def rss_sync(db: Session) -> dict:
     ep_decisions: list[dec.Decision] = []
     for r in releases:
         p = parse(r.title)
+        if not has_episode_info(p):
+            # "One.Piece.1017.German.1080p.WEB" reads like a movie until the series title is known
+            hit = find_absolute(r.title, series_idx)
+            if hit:
+                for s in dict.fromkeys(series_idx[hit[0]]):
+                    d = dec.evaluate_episodes(ctx, s, r, p)
+                    if d.approved:
+                        ep_decisions.append(d)
+                continue
         if p.is_tv:
             cands = [by_tvdb[r.tvdb_id]] if r.tvdb_id in by_tvdb else series_idx.get(p.clean_title, []) + \
                 series_idx.get(p.clean_title + str(p.year or ""), [])

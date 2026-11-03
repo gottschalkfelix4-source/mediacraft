@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from . import recycle
 from ..core import customformats
 from ..core import settings as settings_mod
-from ..core.decision import map_episodes
+from ..core.decision import map_episodes, refine_for_series
 from ..core.parser import parse, parse_path
 from ..downloadclients.base import ClientError
 from ..downloadclients.manager import get_client
@@ -72,7 +72,7 @@ def scan_series(db: Session, series: Series) -> dict:
     for path in video_files(series.path):
         if os.path.normcase(path) in known:
             continue
-        p = parse_path(path)
+        p = refine_for_series(series, parse_path(path))
         if not p.is_tv:
             # "Show/Season 1/01 - Title.mkv" style
             m = re.match(r"^(\d{1,3})\b", os.path.basename(path))
