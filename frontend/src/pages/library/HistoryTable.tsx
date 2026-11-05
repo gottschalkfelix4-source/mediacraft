@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Info } from "lucide-react";
 import { Badge, Empty } from "../../components/ui";
 import { Modal } from "../../components/Modal";
+import { SelectAllBox } from "../../components/MassEditor";
 import { fmtDateTime, HISTORY_EVENT_LABELS } from "../../format";
 import type { HistoryRecord } from "../../types";
 
@@ -16,15 +17,37 @@ export const EVENT_TONE: Record<string, "success" | "info" | "accent" | "danger"
   ignored: "muted",
 };
 
-export function HistoryTable({ records, showTitle, actions }: { records: HistoryRecord[]; showTitle?: boolean; actions?: (h: HistoryRecord) => ReactNode }) {
+export interface RowSelection {
+  ids: Set<number>;
+  toggle: (id: number) => void;
+  setAll: (all: number[], on: boolean) => void;
+}
+
+export function HistoryTable({
+  records,
+  showTitle,
+  actions,
+  selection,
+}: {
+  records: HistoryRecord[];
+  showTitle?: boolean;
+  actions?: (h: HistoryRecord) => ReactNode;
+  selection?: RowSelection;
+}) {
   const [detail, setDetail] = useState<HistoryRecord | null>(null);
   if (!records.length) return <Empty title="Kein Verlauf vorhanden" />;
+  const allIds = records.map((h) => h.id);
   return (
     <>
       <div className="table-wrap">
         <table className="table table-compact">
           <thead>
             <tr>
+              {selection && (
+                <th className="w-check">
+                  <SelectAllBox all={allIds} selected={selection.ids} onChange={(on) => selection.setAll(allIds, on)} />
+                </th>
+              )}
               <th>Ereignis</th>
               {showTitle && <th>Titel</th>}
               <th>Release / Datei</th>
@@ -36,7 +59,12 @@ export function HistoryTable({ records, showTitle, actions }: { records: History
           </thead>
           <tbody>
             {records.map((h) => (
-              <tr key={h.id}>
+              <tr key={h.id} className={selection?.ids.has(h.id) ? "row-selected" : ""}>
+                {selection && (
+                  <td>
+                    <input type="checkbox" aria-label="Eintrag auswählen" checked={selection.ids.has(h.id)} onChange={() => selection.toggle(h.id)} />
+                  </td>
+                )}
                 <td>
                   <Badge tone={EVENT_TONE[h.event] ?? "default"}>{HISTORY_EVENT_LABELS[h.event] ?? h.event}</Badge>
                 </td>

@@ -507,6 +507,20 @@ def remove_queue(qid: int, remove_from_client: bool = True, blocklist: bool = Fa
     return {"ok": True}
 
 
+def _ids(body: dict) -> list[int]:
+    return [int(i) for i in body.get("ids") or []]
+
+
+@router.post("/queue/remove")
+def bulk_remove_queue(body: dict, db: Session = Depends(get_db)):
+    blocklist = bool(body.get("blocklist"))
+    items = db.query(QueueItem).filter(QueueItem.id.in_(_ids(body))).all()
+    for q in items:
+        queue_svc.remove_item(db, q, bool(body.get("remove_from_client", True)), blocklist,
+                              blocklist and bool(body.get("search_again")))
+    return {"deleted": len(items)}
+
+
 @router.post("/queue/{qid}/import")
 def retry_queue_import(qid: int, db: Session = Depends(get_db)):
     q = get_or_404(db, QueueItem, qid)
@@ -574,6 +588,12 @@ def delete_pending(pid: int, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
+@router.post("/pending/delete")
+def bulk_delete_pending(body: dict, db: Session = Depends(get_db)):
+    ids = _ids(body)
+    return {"deleted": db.query(PendingRelease).filter(PendingRelease.id.in_(ids)).delete(synchronize_session=False) if ids else 0}
+
+
 def _history_dict(h: History) -> dict:
     return {"id": h.id, "event": h.event, "date": iso(h.date), "media_type": h.media_type, "movie_id": h.movie_id,
             "series_id": h.series_id, "episode_ids": h.episode_ids, "source_title": h.source_title,
@@ -596,6 +616,12 @@ def history(page: int = 1, page_size: int = 50, event: str = "", db: Session = D
         d["title"] = titles_m.get(h.movie_id) if h.movie_id else titles_s.get(h.series_id)
         out.append(d)
     return {"total": total, "page": page, "page_size": page_size, "records": out}
+
+
+@router.post("/history/delete")
+def bulk_delete_history(body: dict, db: Session = Depends(get_db)):
+    ids = _ids(body)
+    return {"deleted": db.query(History).filter(History.id.in_(ids)).delete(synchronize_session=False) if ids else 0}
 
 
 @router.post("/history/{hid}/failed")
@@ -623,6 +649,12 @@ def blocklist(db: Session = Depends(get_db)):
 def delete_blocklist(bid: int, db: Session = Depends(get_db)):
     db.delete(get_or_404(db, Blocklist, bid))
     return {"ok": True}
+
+
+@router.post("/blocklist/delete")
+def bulk_delete_blocklist(body: dict, db: Session = Depends(get_db)):
+    ids = _ids(body)
+    return {"deleted": db.query(Blocklist).filter(Blocklist.id.in_(ids)).delete(synchronize_session=False) if ids else 0}
 
 
 @router.delete("/blocklist")

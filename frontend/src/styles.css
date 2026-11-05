@@ -2063,3 +2063,4 @@ tr.rel-details td { background: var(--bg-elev-2); font-size: 12.5px; }
   animation-delay: 0s !important;
   transition-duration: 0.001ms !important;
 }
+.bulk-list { max-height: 220px; overflow-y: auto; margin: 0 0 10px; padding-left: 18px; }

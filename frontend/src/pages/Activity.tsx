@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Trash2, RotateCcw, XOctagon, AlertTriangle, Download, Magnet, Newspaper, RefreshCw } from "lucide-react";
+import { Trash2, RotateCcw, XOctagon, AlertTriangle, Download, Magnet, Newspaper, RefreshCw, X } from "lucide-react";
 import { api, errorMessage } from "../api";
 import { Badge, Empty, ErrorBox, Loading, PageHeader, Pager, Progress, Select, Spinner, Tabs } from "../components/ui";
 import { Modal, useConfirm } from "../components/Modal";
 import { useToast } from "../components/Toast";
+import { SelectAllBox, useSelection } from "../components/MassEditor";
 import { useApiMutation, useCommand } from "../hooks";
 import { useEventListener } from "../events";
 import { fmtDateTime, fmtDuration, fmtSize, HISTORY_EVENT_LABELS, langLabel, QUEUE_STATUS_LABELS } from "../format";
@@ -67,8 +68,48 @@ const STATUS_TONE: Record<string, "success" | "info" | "accent" | "danger" | "mu
   warning: "warning",
 };
 
+/** Row selection that ignores rows which no longer exist (lists refresh in the background). */
+function useRowSelection(rowIds: number[]) {
+  const sel = useSelection();
+  const present = new Set(rowIds);
+  const ids = new Set([...sel.ids].filter((id) => present.has(id)));
+  return { ...sel, ids, list: [...ids], allIds: rowIds };
+}
+type RowSel = ReturnType<typeof useRowSelection>;
+
+function SelectHead({ sel }: { sel: RowSel }) {
+  return (
+    <th className="w-check">
+      <SelectAllBox all={sel.allIds} selected={sel.ids} onChange={(on) => sel.setAll(sel.allIds, on)} />
+    </th>
+  );
+}
+
+function SelectCell({ sel, id }: { sel: RowSel; id: number }) {
+  return (
+    <td>
+      <input type="checkbox" aria-label="Eintrag auswählen" checked={sel.ids.has(id)} onChange={() => sel.toggle(id)} />
+    </td>
+  );
+}
+
+function BulkBar({ sel, children }: { sel: RowSel; children: ReactNode }) {
+  if (sel.list.length === 0) return null;
+  return (
+    <div className="save-bar dirty selection-bar">
+      <span className="strong">{sel.list.length} ausgewählt</span>
+      <span className="grow" />
+      {children}
+      <button className="icon-btn" onClick={sel.clear} title="Auswahl aufheben" aria-label="Auswahl aufheben">
+        <X size={16} />
+      </button>
+    </div>
+  );
+}
+
 function QueueTab({ items, loading, error }: { items?: QueueItem[]; loading: boolean; error: unknown }) {
-  const [removing, setRemoving] = useState<QueueItem | null>(null);
+  const [removing, setRemoving] = useState<QueueItem[] | null>(null);
+  const sel = useRowSelection(items?.map((q) => q.id) ?? []);
   const qc = useQueryClient();
   const toast = useToast();
   const retry = async (q: QueueItem) => {
@@ -93,6 +134,7 @@ Startet, sobald kein anderer Import läuft.`);
         <table className="table">
           <thead>
             <tr>
+              <SelectHead sel={sel} />
               <th>Status</th>
               <th>Titel</th>
               <th>Medium</th>
@@ -108,7 +150,8 @@ Startet, sobald kein anderer Import läuft.`);
               const pct = Math.round(q.progress ?? 0); // 0..100
               const problem = ["import_blocked", "warning", "failed"].includes(q.status);
               return (
-                <tr key={q.id} className={problem ? "row-warn" : ""}>
+                <tr key={q.id} className={sel.ids.has(q.id) ? "row-selected" : problem ? "row-warn" : ""}>
+                  <SelectCell sel={sel} id={q.id} />
                   <td>
                     <Badge tone={STATUS_TONE[q.status] ?? "default"} title={q.client_status ?? undefined}>
                       {QUEUE_STATUS_LABELS[q.status] ?? q.status}
@@ -163,7 +206,7 @@ Startet, sobald kein anderer Import läuft.`);
                         <RotateCcw size={15} />
                       </button>
                     )}
-                    <button className="icon-btn danger" title="Entfernen" aria-label="Entfernen" onClick={() => setRemoving(q)}>
+                    <button className="icon-btn danger" title="Entfernen" aria-label="Entfernen" onClick={() => setRemoving([q])}>
                       <Trash2 size={15} />
                     </button>
                   </td>
@@ -173,23 +216,40 @@ Startet, sobald kein anderer Import läuft.`);
           </tbody>
         </table>
       </div>
-      {removing && <RemoveQueueDialog q={removing} onClose={() => setRemoving(null)} />}
+      <BulkBar sel={sel}>
+        <button className="btn btn-danger-outline" onClick={() => setRemoving(items.filter((q) => sel.ids.has(q.id)))}>
+          <Trash2 size={15} /> Entfernen
+        </button>
+      </BulkBar>
+      {removing && (
+        <RemoveQueueDialog
+          items={removing}
+          onClose={() => setRemoving(null)}
+          onDone={() => {
+            for (const q of removing) if (sel.ids.has(q.id)) sel.toggle(q.id);
+          }}
+        />
+      )}
     </>
   );
 }
 
-function RemoveQueueDialog({ q, onClose }: { q: QueueItem; onClose: () => void }) {
+function RemoveQueueDialog({ items, onClose, onDone }: { items: QueueItem[]; onClose: () => void; onDone: () => void }) {
   const [fromClient, setFromClient] = useState(true);
   const [blocklist, setBlocklist] = useState(false);
   const [searchAgain, setSearchAgain] = useState(false);
-  const rm = useApiMutation(() => api.removeQueue(q.id, { remove_from_client: fromClient, blocklist, search_again: blocklist && searchAgain }), {
+  const opts = { remove_from_client: fromClient, blocklist, search_again: blocklist && searchAgain };
+  const rm = useApiMutation(() => api.bulkRemoveQueue(items.map((q) => q.id), opts), {
     invalidate: [["queue"], ["blocklist"]],
-    success: "Aus der Warteschlange entfernt",
-    onSuccess: onClose,
+    success: (r) => (r.deleted === 1 ? "Aus der Warteschlange entfernt" : `${r.deleted} Einträge aus der Warteschlange entfernt`),
+    onSuccess: () => {
+      onDone();
+      onClose();
+    },
   });
   return (
     <Modal
-      title="Aus Warteschlange entfernen"
+      title={items.length === 1 ? "Aus Warteschlange entfernen" : `${items.length} Einträge aus Warteschlange entfernen`}
       size="sm"
       onClose={onClose}
       footer={
@@ -203,7 +263,15 @@ function RemoveQueueDialog({ q, onClose }: { q: QueueItem; onClose: () => void }
         </>
       }
     >
-      <p className="break small">{q.title}</p>
+      {items.length === 1 ? (
+        <p className="break small">{items[0].title}</p>
+      ) : (
+        <ul className="break small bulk-list">
+          {items.map((q) => (
+            <li key={q.id}>{q.title}</li>
+          ))}
+        </ul>
+      )}
       <label className="checkbox">
         <input type="checkbox" checked={fromClient} onChange={(e) => setFromClient(e.target.checked)} /> Auch aus dem Downloadclient entfernen
       </label>
@@ -229,6 +297,26 @@ function HistoryTab() {
   const confirm = useConfirm();
   const toast = useToast();
   const qc = useQueryClient();
+  const sel = useRowSelection(data?.records.map((h) => h.id) ?? []);
+  const remove = useApiMutation((ids: number[]) => api.bulkDeleteHistory(ids), {
+    invalidate: [["history"]],
+    success: (r) => `${r.deleted} Verlaufseinträge gelöscht`,
+    onSuccess: () => sel.clear(),
+  });
+  const removeSelected = async () => {
+    const n = sel.list.length;
+    const ok = await confirm({
+      title: `${n} Verlaufseinträge löschen?`,
+      message: "Die ausgewählten Einträge werden endgültig aus dem Verlauf entfernt.",
+      confirmLabel: "Löschen",
+      danger: true,
+    });
+    if (ok) remove.mutate(sel.list);
+  };
+  const goPage = (p: number) => {
+    setPage(p);
+    sel.clear();
+  };
   const markFailed = async (id: number, title: string) => {
     const ok = await confirm({ title: "Als fehlgeschlagen markieren?", message: <>„{title}“ wird auf die Blocklist gesetzt und es wird erneut gesucht.</>, confirmLabel: "Markieren", danger: true });
     if (!ok) return;
@@ -250,6 +338,7 @@ function HistoryTab() {
           onValue={(v) => {
             setEvent(v);
             setPage(1);
+            sel.clear();
           }}
           aria-label="Ereignis filtern"
           options={[{ value: "", label: "Alle Ereignisse" }, ...Object.entries(HISTORY_EVENT_LABELS).map(([k, l]) => ({ value: k, label: l }))]}
@@ -257,7 +346,7 @@ function HistoryTab() {
         {data && <span className="muted">{data.total} Einträge</span>}
         {isFetching && <Spinner />}
         <span className="ml-auto" />
-        <Pager page={page} pages={pages} onPage={setPage} />
+        <Pager page={page} pages={pages} onPage={goPage} />
       </div>
       {isLoading && <Loading />}
       {error ? <ErrorBox error={error} /> : null}
@@ -265,6 +354,7 @@ function HistoryTab() {
         <HistoryTable
           records={data.records}
           showTitle
+          selection={sel}
           actions={(h) =>
             h.event === "grabbed" || h.event === "imported" || h.event === "upgraded" ? (
               <button className="icon-btn danger" title="Als fehlgeschlagen markieren" aria-label="Als fehlgeschlagen markieren" onClick={() => markFailed(h.id, h.source_title)}>
@@ -274,9 +364,14 @@ function HistoryTab() {
           }
         />
       )}
+      <BulkBar sel={sel}>
+        <button className="btn btn-danger-outline" onClick={removeSelected} disabled={remove.isPending}>
+          {remove.isPending ? <Spinner size={14} /> : <Trash2 size={15} />} Löschen
+        </button>
+      </BulkBar>
       <div className="row mt">
         <span className="ml-auto" />
-        <Pager page={page} pages={pages} onPage={setPage} />
+        <Pager page={page} pages={pages} onPage={goPage} />
       </div>
     </>
   );
@@ -287,6 +382,22 @@ function BlocklistTab() {
   const confirm = useConfirm();
   const del = useApiMutation((id: number) => api.deleteBlocklist(id), { invalidate: [["blocklist"]], success: "Aus der Blocklist entfernt" });
   const clear = useApiMutation(() => api.clearBlocklist(), { invalidate: [["blocklist"]], success: (r) => `${r.deleted} Einträge entfernt` });
+  const sel = useRowSelection(data?.map((b) => b.id) ?? []);
+  const delMany = useApiMutation((ids: number[]) => api.bulkDeleteBlocklist(ids), {
+    invalidate: [["blocklist"]],
+    success: (r) => `${r.deleted} Einträge aus der Blocklist entfernt`,
+    onSuccess: () => sel.clear(),
+  });
+  const delSelected = async () => {
+    const n = sel.list.length;
+    const ok = await confirm({
+      title: `${n} Einträge aus der Blocklist entfernen?`,
+      message: "Diese Releases können danach wieder geladen werden.",
+      confirmLabel: "Entfernen",
+      danger: true,
+    });
+    if (ok) delMany.mutate(sel.list);
+  };
   if (isLoading) return <Loading />;
   if (error) return <ErrorBox error={error} />;
   return (
@@ -310,6 +421,7 @@ function BlocklistTab() {
           <table className="table table-compact">
             <thead>
               <tr>
+                <SelectHead sel={sel} />
                 <th>Release</th>
                 <th>Medium</th>
                 <th>Indexer</th>
@@ -320,7 +432,8 @@ function BlocklistTab() {
             </thead>
             <tbody>
               {data.map((b) => (
-                <tr key={b.id}>
+                <tr key={b.id} className={sel.ids.has(b.id) ? "row-selected" : ""}>
+                  <SelectCell sel={sel} id={b.id} />
                   <td className="break small">{b.source_title}</td>
                   <td>{b.movie_id ? <Link to={`/movies/${b.movie_id}`}>Film</Link> : b.series_id ? <Link to={`/series/${b.series_id}`}>Serie</Link> : "–"}</td>
                   <td className="small">
@@ -339,6 +452,11 @@ function BlocklistTab() {
           </table>
         </div>
       )}
+      <BulkBar sel={sel}>
+        <button className="btn btn-danger-outline" onClick={delSelected} disabled={delMany.isPending}>
+          {delMany.isPending ? <Spinner size={14} /> : <Trash2 size={15} />} Entfernen
+        </button>
+      </BulkBar>
     </>
   );
 }
@@ -350,6 +468,23 @@ function PendingTab() {
     success: (r) => (r.grabbed ? "Release wird geladen" : r.errors[0] ?? "Release ist nicht mehr gültig"),
   });
   const drop = useApiMutation((id: number) => api.deletePending(id), { invalidate: [["pending"]], success: "Verworfen" });
+  const sel = useRowSelection(data?.map((p) => p.id) ?? []);
+  const confirm = useConfirm();
+  const dropMany = useApiMutation((ids: number[]) => api.bulkDeletePending(ids), {
+    invalidate: [["pending"]],
+    success: (r) => `${r.deleted} Releases verworfen`,
+    onSuccess: () => sel.clear(),
+  });
+  const dropSelected = async () => {
+    const n = sel.list.length;
+    const ok = await confirm({
+      title: `${n} Releases verwerfen?`,
+      message: "Die ausgewählten zurückgestellten Releases werden nicht mehr geladen.",
+      confirmLabel: "Verwerfen",
+      danger: true,
+    });
+    if (ok) dropMany.mutate(sel.list);
+  };
   if (isLoading) return <Loading />;
   if (error) return <ErrorBox error={error} />;
   if (!data?.length)
@@ -359,48 +494,57 @@ function PendingTab() {
       </Empty>
     );
   return (
-    <div className="table-wrap">
-      <table className="table">
-        <thead>
-          <tr>
-            <th>Für</th>
-            <th>Release</th>
-            <th>Qualität</th>
-            <th>Indexer</th>
-            <th className="num">Größe</th>
-            <th>Lädt ab</th>
-            <th className="w-actions" />
-          </tr>
-        </thead>
-        <tbody>
-          {data.map((p) => (
-            <tr key={p.id}>
-              <td>
-                <Link to={p.movie_id ? `/movies/${p.movie_id}` : `/series/${p.series_id}`} className="strong">
-                  {p.target}
-                </Link>
-              </td>
-              <td className="small break" title={p.reason ?? undefined}>
-                {p.protocol === "torrent" ? <Magnet size={13} /> : <Newspaper size={13} />} {p.title}
-              </td>
-              <td>
-                <Badge>{p.quality}</Badge> {p.format_score ? <Badge tone="muted">{p.format_score}</Badge> : null}
-              </td>
-              <td className="small">{p.indexer ?? "–"}</td>
-              <td className="num">{fmtSize(p.size)}</td>
-              <td className="small nowrap">{fmtDateTime(p.release_at)}</td>
-              <td className="actions">
-                <button className="icon-btn" title="Jetzt laden" aria-label="Jetzt laden" onClick={() => grab.mutate(p.id)} disabled={grab.isPending}>
-                  <Download size={15} />
-                </button>
-                <button className="icon-btn danger" title="Verwerfen" aria-label="Verwerfen" onClick={() => drop.mutate(p.id)}>
-                  <Trash2 size={15} />
-                </button>
-              </td>
+    <>
+      <div className="table-wrap">
+        <table className="table">
+          <thead>
+            <tr>
+              <SelectHead sel={sel} />
+              <th>Für</th>
+              <th>Release</th>
+              <th>Qualität</th>
+              <th>Indexer</th>
+              <th className="num">Größe</th>
+              <th>Lädt ab</th>
+              <th className="w-actions" />
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {data.map((p) => (
+              <tr key={p.id} className={sel.ids.has(p.id) ? "row-selected" : ""}>
+                <SelectCell sel={sel} id={p.id} />
+                <td>
+                  <Link to={p.movie_id ? `/movies/${p.movie_id}` : `/series/${p.series_id}`} className="strong">
+                    {p.target}
+                  </Link>
+                </td>
+                <td className="small break" title={p.reason ?? undefined}>
+                  {p.protocol === "torrent" ? <Magnet size={13} /> : <Newspaper size={13} />} {p.title}
+                </td>
+                <td>
+                  <Badge>{p.quality}</Badge> {p.format_score ? <Badge tone="muted">{p.format_score}</Badge> : null}
+                </td>
+                <td className="small">{p.indexer ?? "–"}</td>
+                <td className="num">{fmtSize(p.size)}</td>
+                <td className="small nowrap">{fmtDateTime(p.release_at)}</td>
+                <td className="actions">
+                  <button className="icon-btn" title="Jetzt laden" aria-label="Jetzt laden" onClick={() => grab.mutate(p.id)} disabled={grab.isPending}>
+                    <Download size={15} />
+                  </button>
+                  <button className="icon-btn danger" title="Verwerfen" aria-label="Verwerfen" onClick={() => drop.mutate(p.id)}>
+                    <Trash2 size={15} />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <BulkBar sel={sel}>
+        <button className="btn btn-danger-outline" onClick={dropSelected} disabled={dropMany.isPending}>
+          {dropMany.isPending ? <Spinner size={14} /> : <Trash2 size={15} />} Verwerfen
+        </button>
+      </BulkBar>
+    </>
   );
 }
